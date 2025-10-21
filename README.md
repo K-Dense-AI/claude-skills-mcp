@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial-blue.svg)](https://polyformproject.org/licenses/noncommercial/1.0.0/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![PyPI version](https://badge.fury.io/py/claude-skills-mcp.svg)](https://badge.fury.io/py/claude-skills-mcp)
 
@@ -311,8 +311,6 @@ We're working on MCP Sampling, sandboxed execution, binary support, and skill wo
 
 ## License
 
-This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md).
+This project is licensed under the [Apache License 2.0](LICENSE).
 
-**Required Notice:** Copyright K-Dense AI (https://k-dense.ai)
-
-For commercial use or licensing inquiries, please contact K-Dense AI at [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai).
+Copyright 2025 K-Dense AI (https://k-dense.ai)

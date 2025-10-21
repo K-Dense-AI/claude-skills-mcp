@@ -3,8 +3,8 @@ name = "claude-skills-mcp"
 version = "0.1.1"
 description = "MCP server for searching and retrieving Claude Agent Skills using vector search"
 readme = "README.md"
-license = {text = "PolyForm Noncommercial License 1.0.0"}
-license-files = {paths = ["LICENSE.md"]}
+license = {text = "Apache-2.0"}
+license-files = {paths = ["LICENSE"]}
 authors = [
     {name = "K-Dense AI", email = "orion.li@k-dense.ai"}
 ]
@@ -16,6 +16,7 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3.12",
 ]
