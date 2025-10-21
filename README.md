@@ -178,9 +178,11 @@ description: Brief description of what this skill does
 ### Dependencies
 
 - `mcp>=1.0.0` - Model Context Protocol
-- `sentence-transformers>=2.2.0` - Vector embeddings
+- `sentence-transformers>=2.2.0` - Vector embeddings (uses CPU-only PyTorch on Linux)
 - `numpy>=1.24.0` - Numerical operations
 - `httpx>=0.24.0` - HTTP client for GitHub API
+
+**Note on PyTorch**: This project uses CPU-only PyTorch on Linux systems to avoid unnecessary CUDA dependencies (~3-4 GB). This significantly reduces Docker image size and build time while maintaining full functionality for semantic search.
 
 ### Python Version
 
@@ -194,6 +196,7 @@ description: Brief description of what this skill does
 - **Document access**: On-demand with automatic disk caching
 - **Memory usage**: ~500MB (embedding model + indexed skills)
 - **First run**: Downloads ~100MB embedding model (cached thereafter)
+- **Docker image size**: ~1-2 GB (uses CPU-only PyTorch, no CUDA dependencies)
 
 ## How It Works
 
@@ -222,6 +225,22 @@ The server is designed to be resilient:
 - If a local folder is inaccessible, it logs a warning and continues
 - If a GitHub repo fails to load, it tries alternate branches and continues
 - If no skills are loaded, the server exits with an error message
+
+## Docker Deployment
+
+### Building Docker Image
+
+```bash
+docker build -t claude-skills-mcp -f Dockerfile.glama .
+```
+
+### Running with Docker
+
+```bash
+docker run -it claude-skills-mcp
+```
+
+The optimized Dockerfile uses CPU-only PyTorch to minimize image size and build time while maintaining full functionality.
 
 ## Development
 

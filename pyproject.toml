@@ -26,7 +26,19 @@ dependencies = [
     "sentence-transformers>=2.2.0",
     "numpy>=1.24.0",
     "httpx>=0.24.0",
+    "torch>=2.0.0; platform_system != 'Linux'",
+    "torch>=2.0.0,<3.0.0; platform_system == 'Linux'",
 ]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "platform_system == 'Linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [project.urls]
 Homepage = "https://github.com/K-Dense-AI/claude-skills-mcp"
