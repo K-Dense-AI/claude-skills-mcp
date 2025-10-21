@@ -1,5 +1,11 @@
 # Claude Skills MCP Server
 
+[![Tests](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial-blue.svg)](https://polyformproject.org/licenses/noncommercial/1.0.0/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+<!-- Add after publishing to PyPI: [![PyPI version](https://badge.fury.io/py/claude-skills-mcp.svg)](https://badge.fury.io/py/claude-skills-mcp) -->
+
 > **Use [Claude's powerful new Skills system](https://www.anthropic.com/news/skills) with ANY AI model or coding assistant** - including Cursor, Codex, GPT-5, Gemini, and more. This MCP server brings Anthropic's Agent Skills framework to the entire AI ecosystem through the Model Context Protocol.
 
 A Model Context Protocol (MCP) server that provides intelligent search capabilities for discovering relevant Claude Agent Skills using vector embeddings and semantic similarity. This server implements the same progressive disclosure architecture that Anthropic describes in their [Agent Skills engineering blog](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills), making specialized skills available to any MCP-compatible AI application.
@@ -235,15 +241,16 @@ Options:
   --help               Show help message
 ```
 
-## How to Contribute
+## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `uv run pytest tests/ -v`
-5. Submit a pull request
+Contributions are welcome! To contribute:
 
-All contributions are welcome! Please ensure tests pass before submitting.
+1. **Report issues**: [Open an issue](https://github.com/K-Dense-AI/claude-skills-mcp/issues) for bugs or feature requests
+2. **Submit PRs**: Fork, create a feature branch, ensure tests pass (`uv run pytest tests/`), then submit
+3. **Code style**: Run `uvx ruff check src/` before committing
+4. **Add tests**: New features should include tests
+
+For questions, email [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai)
 
 ## Documentation
 
