@@ -1,6 +1,6 @@
 [project]
 name = "claude-skills-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "MCP server for searching and retrieving Claude Agent Skills using vector search"
 readme = "README.md"
 license = {text = "Apache-2.0"}
