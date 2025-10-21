@@ -183,7 +183,7 @@ def load_from_github(url: str, subpath: str = "") -> list[Skill]:
         owner = path_parts[0]
         repo = path_parts[1]
         branch = "main"  # Default branch
-        
+
         # Check if URL contains /tree/{branch}/{subpath} format
         # e.g., https://github.com/owner/repo/tree/main/subdirectory
         if len(path_parts) > 3 and path_parts[2] == "tree":
@@ -196,9 +196,13 @@ def load_from_github(url: str, subpath: str = "") -> list[Skill]:
                     logger.info(f"Extracted subpath from URL: {subpath}")
 
         if subpath:
-            logger.info(f"Loading skills from GitHub: {owner}/{repo} (branch: {branch}, subpath: {subpath})")
+            logger.info(
+                f"Loading skills from GitHub: {owner}/{repo} (branch: {branch}, subpath: {subpath})"
+            )
         else:
-            logger.info(f"Loading skills from GitHub: {owner}/{repo} (branch: {branch})")
+            logger.info(
+                f"Loading skills from GitHub: {owner}/{repo} (branch: {branch})"
+            )
 
         # Get repository tree
         api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"

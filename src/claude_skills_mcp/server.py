@@ -21,9 +21,16 @@ class SkillsMCPServer:
         The search engine instance.
     default_top_k : int
         Default number of results to return.
+    max_content_chars : int | None
+        Maximum characters for skill content (None for unlimited).
     """
 
-    def __init__(self, search_engine: SkillSearchEngine, default_top_k: int = 3):
+    def __init__(
+        self,
+        search_engine: SkillSearchEngine,
+        default_top_k: int = 3,
+        max_content_chars: int | None = None,
+    ):
         """Initialize the MCP server.
 
         Parameters
@@ -32,9 +39,12 @@ class SkillsMCPServer:
             Initialized search engine with indexed skills.
         default_top_k : int, optional
             Default number of results to return, by default 3.
+        max_content_chars : int | None, optional
+            Maximum characters for skill content. None for unlimited, by default None.
         """
         self.search_engine = search_engine
         self.default_top_k = default_top_k
+        self.max_content_chars = max_content_chars
         self.server = Server("claude-skills-mcp")
 
         # Register handlers
@@ -51,22 +61,30 @@ class SkillsMCPServer:
             return [
                 Tool(
                     name="search_skills",
+                    title="Claude Agent Skills Search",
                     description=(
-                        "Search for relevant Claude Agent Skills based on a task description. "
-                        "Returns the most relevant skills with their full content, descriptions, "
-                        "and relevance scores. Use this when you need to find skills that can "
-                        "help accomplish a specific task or solve a particular problem."
+                        "Search and discover proven Claude Agent Skills that provide expert guidance for your tasks. "
+                        "Use this tool whenever you're starting a new task, facing a coding challenge, or need specialized "
+                        "techniques. Returns highly relevant skills with complete implementation guides, code examples, and "
+                        "best practices ranked by relevance. Each result includes detailed step-by-step instructions you can "
+                        "follow immediately. Essential for leveraging battle-tested patterns, avoiding common pitfalls, and "
+                        "accelerating development with proven solutions. Perfect for finding reusable workflows, debugging "
+                        "strategies, API integration patterns, data processing techniques, and domain-specific methodologies."
                     ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "task_description": {
                                 "type": "string",
-                                "description": "Description of the task you want to accomplish",
+                                "description": (
+                                    "Description of the task you want to accomplish. Be specific about your goal, "
+                                    "context, or problem domain for better results (e.g., 'debug Python API errors', "
+                                    "'process genomic data', 'build React dashboard')"
+                                ),
                             },
                             "top_k": {
                                 "type": "integer",
-                                "description": f"Number of skills to return (default: {self.default_top_k})",
+                                "description": f"Number of skills to return (default: {self.default_top_k}). Higher values provide more options but may include less relevant results.",
                                 "default": self.default_top_k,
                                 "minimum": 1,
                                 "maximum": 20,
@@ -116,7 +134,22 @@ class SkillsMCPServer:
                 response_parts.append(f"\nDescription: {result['description']}")
                 response_parts.append(f"\n{'-' * 80}")
                 response_parts.append("\nFull Content:\n")
-                response_parts.append(result["content"])
+
+                # Apply character limit truncation if configured
+                content = result["content"]
+                if (
+                    self.max_content_chars is not None
+                    and len(content) > self.max_content_chars
+                ):
+                    truncated_content = content[: self.max_content_chars] + "..."
+                    response_parts.append(truncated_content)
+                    response_parts.append(
+                        f"\n\n[Content truncated at {self.max_content_chars} characters. "
+                        f"View full skill at: {result['source']}]"
+                    )
+                else:
+                    response_parts.append(content)
+
                 response_parts.append(f"\n{'=' * 80}\n")
 
             return [TextContent(type="text", text="\n".join(response_parts))]

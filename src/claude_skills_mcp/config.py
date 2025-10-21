@@ -16,6 +16,7 @@ DEFAULT_CONFIG = {
     ],
     "embedding_model": "all-MiniLM-L6-v2",
     "default_top_k": 3,
+    "max_skill_content_chars": None,  # None for unlimited, or an integer to limit
 }
 
 
@@ -81,5 +82,6 @@ def get_example_config() -> str:
         ],
         "embedding_model": "all-MiniLM-L6-v2",
         "default_top_k": 3,
+        "max_skill_content_chars": 5000,
     }
     return json.dumps(example, indent=2)

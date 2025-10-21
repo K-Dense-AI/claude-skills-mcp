@@ -109,7 +109,9 @@ async def main_async() -> None:
 
         # Create and run MCP server
         mcp_server = SkillsMCPServer(
-            search_engine=search_engine, default_top_k=config["default_top_k"]
+            search_engine=search_engine,
+            default_top_k=config["default_top_k"],
+            max_content_chars=config.get("max_skill_content_chars"),
         )
 
         await mcp_server.run()

@@ -20,6 +20,8 @@
     }
   ],
   "embedding_model": "all-MiniLM-L6-v2",
-  "default_top_k": 3
+  "default_top_k": 3,
+  "max_skill_content_chars": 20000,
+  "comment_max_chars": "Set to null for unlimited skill content, or an integer to truncate long skills (helps manage token usage)"
 }
 
