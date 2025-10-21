@@ -12,7 +12,15 @@ DEFAULT_CONFIG = {
         {
             "type": "github",
             "url": "https://github.com/anthropics/skills",
-        }
+        },
+        {
+            "type": "github",
+            "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
+        },
+        {
+            "type": "local",
+            "path": "~/.claude/skills",
+        },
     ],
     "embedding_model": "all-MiniLM-L6-v2",
     "default_top_k": 3,
@@ -20,7 +28,18 @@ DEFAULT_CONFIG = {
     "load_skill_documents": True,  # Load additional files from skill directories
     "max_image_size_bytes": 5242880,  # 5MB limit for image files
     "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
-    "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
+    "text_file_extensions": [
+        ".md",
+        ".py",
+        ".txt",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".sh",
+        ".r",
+        ".ipynb",
+        ".xml",
+    ],
 }
 
 
@@ -64,33 +83,50 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
 
 
 def get_example_config() -> str:
-    """Get an example configuration as JSON string.
+    """Get the default configuration as JSON string.
 
     Returns
     -------
     str
-        Example configuration in JSON format.
+        Default configuration in JSON format.
     """
-    example = {
+    # Add helpful comments for clarity
+    config_with_comments = {
         "skill_sources": [
             {
                 "type": "github",
                 "url": "https://github.com/anthropics/skills",
-                "comment": "Official Anthropic skills - diverse examples including Python scripts, images, and more",
+                "comment": "Official Anthropic skills - diverse examples with Python scripts, images, documents",
             },
             {
                 "type": "github",
                 "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
                 "comment": "70+ scientific skills for bioinformatics, cheminformatics, and analysis",
             },
-            {"type": "local", "path": "~/.claude/skills"},
+            {
+                "type": "local",
+                "path": "~/.claude/skills",
+                "comment": "Your custom local skills (optional - directory doesn't need to exist)",
+            },
         ],
         "embedding_model": "all-MiniLM-L6-v2",
         "default_top_k": 3,
-        "max_skill_content_chars": 5000,
+        "max_skill_content_chars": None,
+        "comment_max_chars": "Set to an integer (e.g., 5000) to truncate skill content, or null for unlimited",
         "load_skill_documents": True,
         "max_image_size_bytes": 5242880,
         "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
-        "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
+        "text_file_extensions": [
+            ".md",
+            ".py",
+            ".txt",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".sh",
+            ".r",
+            ".ipynb",
+            ".xml",
+        ],
     }
-    return json.dumps(example, indent=2)
+    return json.dumps(config_with_comments, indent=2)

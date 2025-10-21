@@ -1,10 +1,8 @@
 """Tests for document loading functionality."""
 
 import base64
-import tempfile
 from pathlib import Path
 
-import pytest
 
 from claude_skills_mcp.skill_loader import (
     Skill,
@@ -14,7 +12,6 @@ from claude_skills_mcp.skill_loader import (
     _load_image_file,
     _load_documents_from_directory,
     load_from_local,
-    parse_skill_md,
 )
 
 
@@ -191,9 +188,7 @@ class TestDocumentDirectoryLoading:
 
     def test_load_documents_from_directory_empty(self, tmp_path):
         """Test loading from an empty directory."""
-        documents = _load_documents_from_directory(
-            tmp_path, [".py"], [".png"], 1024
-        )
+        documents = _load_documents_from_directory(tmp_path, [".py"], [".png"], 1024)
 
         assert len(documents) == 0
 
@@ -364,4 +359,3 @@ This skill has images.
         assert "assets/diagram.png" in skill.documents
         assert skill.documents["assets/diagram.png"]["type"] == "image"
         assert "content" in skill.documents["assets/diagram.png"]
-

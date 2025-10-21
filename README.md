@@ -27,19 +27,19 @@ Run the server with default configuration (no installation required):
 uvx claude-skills-mcp
 ```
 
+This loads ~90 skills from Anthropic's official skills repository and K-Dense AI's scientific skills collection.
+
 ### With Custom Configuration
 
-1. Generate an example configuration file:
+To customize skill sources or search parameters:
 
 ```bash
+# 1. Print the default configuration
 uvx claude-skills-mcp --example-config > config.json
-```
 
-2. Edit `config.json` to customize your skill sources
+# 2. Edit config.json to your needs
 
-3. Run with your configuration:
-
-```bash
+# 3. Run with your custom configuration
 uvx claude-skills-mcp --config config.json
 ```
 
@@ -63,6 +63,14 @@ If no config file is specified, the server uses these defaults:
     {
       "type": "github",
       "url": "https://github.com/anthropics/skills"
+    },
+    {
+      "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
+    },
+    {
+      "type": "local",
+      "path": "~/.claude/skills"
     }
   ],
   "embedding_model": "all-MiniLM-L6-v2",
@@ -70,6 +78,8 @@ If no config file is specified, the server uses these defaults:
   "max_skill_content_chars": null
 }
 ```
+
+This loads ~90 skills by default: 15 from Anthropic (document tools, web artifacts, etc.) + 78 from K-Dense AI (scientific analysis tools) + any custom local skills.
 
 ### Configuration Options
 
@@ -82,7 +92,7 @@ If no config file is specified, the server uses these defaults:
 | `load_skill_documents` | Boolean | `true` | Load additional skill files |
 | `max_image_size_bytes` | Integer | `5242880` | Max image size (5MB) |
 
-See [config.example.json](config.example.json) for complete options and [Usage Guide](docs/usage.md) for advanced configuration patterns.
+To customize, run `uvx claude-skills-mcp --example-config > config.json` to see all options, or check [Usage Guide](docs/usage.md) for advanced patterns.
 
 ## MCP Tools
 
@@ -133,8 +143,9 @@ description: Brief description of what this skill does
 
 ### Performance
 
-- **Startup time**: ~5-10 seconds (loads model and indexes skills)
+- **Startup time**: ~10-20 seconds (loads SKILL.md files only with lazy document loading)
 - **Query time**: <1 second for vector search
+- **Document access**: On-demand with automatic disk caching
 - **Memory usage**: ~500MB (embedding model + indexed skills)
 - **First run**: Downloads ~100MB embedding model (cached thereafter)
 
@@ -142,16 +153,22 @@ description: Brief description of what this skill does
 
 This server implements Anthropic's **progressive disclosure** architecture:
 
-1. **Startup**: Load skills from GitHub/local sources, generate vector embeddings
+1. **Startup**: Load SKILL.md files from GitHub/local sources, generate vector embeddings
 2. **Search**: Match task queries against skill descriptions using cosine similarity  
 3. **Progressive Loading**: Return metadata → full content → referenced files as needed
-4. **Caching**: Automatic 24-hour caching of GitHub API responses
+4. **Lazy Document Loading**: Additional skill documents fetched on-demand with automatic disk caching
+5. **Two-Level Caching**: GitHub API responses (24h) + individual documents (permanent)
 
-This enables any MCP-compatible AI assistant to intelligently discover and load relevant skills with minimal context overhead. See [Architecture Guide](docs/architecture.md) for details.
+This enables any MCP-compatible AI assistant to intelligently discover and load relevant skills with minimal context overhead and fast startup. See [Architecture Guide](docs/architecture.md) for details.
 
 ## Skill Sources
 
-Load skills from **GitHub repositories** (direct skills or Claude Code plugins) or **local directories**. Defaults to [Official Anthropic Skills](https://github.com/anthropics/skills). See [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) for 70+ specialized scientific skills.
+Load skills from **GitHub repositories** (direct skills or Claude Code plugins) or **local directories**. 
+
+By default, loads from:
+- [Official Anthropic Skills](https://github.com/anthropics/skills) - 15 diverse skills for documents, presentations, web artifacts, and more
+- [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 78+ specialized skills for bioinformatics, cheminformatics, and scientific analysis
+- Local directory `~/.claude/skills` (if it exists)
 
 ## Error Handling
 
@@ -213,7 +230,7 @@ uvx claude-skills-mcp [OPTIONS]
 
 Options:
   --config PATH         Path to configuration JSON file
-  --example-config      Print example configuration and exit
+  --example-config      Print default configuration (with comments) and exit
   --verbose, -v         Enable verbose logging
   --help               Show help message
 ```

@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import tempfile
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,10 @@ class Skill:
     documents : dict[str, dict[str, Any]]
         Additional documents from the skill directory.
         Keys are relative paths, values contain metadata and content.
+    _document_fetcher : Callable | None
+        Function to fetch document content on-demand.
+    _document_cache : dict[str, dict[str, Any]]
+        In-memory cache for fetched documents.
     """
 
     def __init__(
@@ -41,12 +46,51 @@ class Skill:
         content: str,
         source: str,
         documents: dict[str, dict[str, Any]] | None = None,
+        document_fetcher: Callable | None = None,
     ):
         self.name = name
         self.description = description
         self.content = content
         self.source = source
         self.documents = documents or {}
+        self._document_fetcher = document_fetcher
+        self._document_cache = {}
+
+    def get_document(self, doc_path: str) -> dict[str, Any] | None:
+        """Fetch document content on-demand with caching.
+
+        Parameters
+        ----------
+        doc_path : str
+            Relative path to the document.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            Document content with metadata, or None if not found.
+        """
+        # Check memory cache first
+        if doc_path in self._document_cache:
+            return self._document_cache[doc_path]
+
+        # Check if document exists in metadata
+        if doc_path not in self.documents:
+            return None
+
+        # If already fetched (eager loaded), return from documents
+        doc_info = self.documents[doc_path]
+        if doc_info.get("fetched") or "content" in doc_info:
+            return doc_info
+
+        # Fetch using the document_fetcher (lazy loading)
+        if self._document_fetcher:
+            content = self._document_fetcher(doc_path)
+            if content:
+                # Cache it in memory
+                self._document_cache[doc_path] = content
+                return content
+
+        return None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert skill to dictionary representation.
@@ -202,7 +246,7 @@ def _load_image_file(
     """
     try:
         file_size = file_path.stat().st_size
-        
+
         if file_size > max_size:
             logger.warning(
                 f"Image {file_path} exceeds size limit ({file_size} > {max_size}), "
@@ -216,11 +260,11 @@ def _load_image_file(
             if url:
                 result["url"] = url
             return result
-        
+
         # Read and base64 encode the image
         image_data = file_path.read_bytes()
         base64_content = base64.b64encode(image_data).decode("utf-8")
-        
+
         result = {
             "type": "image",
             "content": base64_content,
@@ -228,9 +272,9 @@ def _load_image_file(
         }
         if url:
             result["url"] = url
-        
+
         return result
-    
+
     except Exception as e:
         logger.error(f"Error reading image file {file_path}: {e}")
         return None
@@ -261,156 +305,30 @@ def _load_documents_from_directory(
         Dictionary mapping relative paths to document metadata.
     """
     documents = {}
-    
+
     for file_path in skill_dir.rglob("*"):
         # Skip SKILL.md itself and directories
         if file_path.name == "SKILL.md" or file_path.is_dir():
             continue
-        
+
         # Calculate relative path from skill directory
         try:
             rel_path = str(file_path.relative_to(skill_dir))
         except ValueError:
             continue
-        
+
         # Process text files
         if _is_text_file(file_path, text_extensions):
             doc_data = _load_text_file(file_path)
             if doc_data:
                 documents[rel_path] = doc_data
-        
+
         # Process image files
         elif _is_image_file(file_path, image_extensions):
             doc_data = _load_image_file(file_path, max_image_size)
             if doc_data:
                 documents[rel_path] = doc_data
-    
-    return documents
 
-
-def _load_documents_from_github(
-    owner: str,
-    repo: str,
-    branch: str,
-    skill_dir_path: str,
-    tree_data: dict[str, Any],
-    text_extensions: list[str],
-    image_extensions: list[str],
-    max_image_size: int,
-) -> dict[str, dict[str, Any]]:
-    """Load all documents from a GitHub skill directory.
-
-    Parameters
-    ----------
-    owner : str
-        GitHub repository owner.
-    repo : str
-        GitHub repository name.
-    branch : str
-        Branch name.
-    skill_dir_path : str
-        Path to the skill directory within the repo.
-    tree_data : dict[str, Any]
-        GitHub API tree data for the repository.
-    text_extensions : list[str]
-        List of allowed text file extensions.
-    image_extensions : list[str]
-        List of allowed image file extensions.
-    max_image_size : int
-        Maximum image file size in bytes.
-
-    Returns
-    -------
-    dict[str, dict[str, Any]]
-        Dictionary mapping relative paths to document metadata.
-    """
-    documents = {}
-    
-    # Find all files in the skill directory (but not SKILL.md itself)
-    for item in tree_data.get("tree", []):
-        if item["type"] != "blob":
-            continue
-        
-        item_path = item["path"]
-        
-        # Skip if not in the skill directory
-        if not item_path.startswith(skill_dir_path):
-            continue
-        
-        # Skip SKILL.md itself
-        if item_path.endswith("/SKILL.md") or item_path == f"{skill_dir_path}/SKILL.md":
-            continue
-        
-        # Calculate relative path from skill directory
-        if skill_dir_path:
-            rel_path = item_path[len(skill_dir_path):].lstrip("/")
-        else:
-            rel_path = item_path
-        
-        if not rel_path:
-            continue
-        
-        # Check file extension
-        file_ext = Path(item_path).suffix.lower()
-        
-        # Process text files
-        if file_ext in text_extensions:
-            try:
-                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{item_path}"
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.get(raw_url)
-                    response.raise_for_status()
-                    content = response.text
-                
-                documents[rel_path] = {
-                    "type": "text",
-                    "content": content,
-                    "size": len(content),
-                }
-                logger.debug(f"Loaded text document: {rel_path}")
-            
-            except Exception as e:
-                logger.error(f"Error loading text file {item_path} from GitHub: {e}")
-        
-        # Process image files
-        elif file_ext in image_extensions:
-            try:
-                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{item_path}"
-                
-                # First, get the file size from the tree data
-                file_size = item.get("size", 0)
-                
-                if file_size > max_image_size:
-                    logger.warning(
-                        f"Image {item_path} exceeds size limit ({file_size} > {max_image_size}), "
-                        "storing URL only"
-                    )
-                    documents[rel_path] = {
-                        "type": "image",
-                        "size": file_size,
-                        "size_exceeded": True,
-                        "url": raw_url,
-                    }
-                else:
-                    # Fetch and base64 encode the image
-                    with httpx.Client(timeout=30.0) as client:
-                        response = client.get(raw_url)
-                        response.raise_for_status()
-                        image_data = response.content
-                    
-                    base64_content = base64.b64encode(image_data).decode("utf-8")
-                    
-                    documents[rel_path] = {
-                        "type": "image",
-                        "content": base64_content,
-                        "size": len(image_data),
-                        "url": raw_url,
-                    }
-                    logger.debug(f"Loaded image document: {rel_path}")
-            
-            except Exception as e:
-                logger.error(f"Error loading image file {item_path} from GitHub: {e}")
-    
     return documents
 
 
@@ -430,14 +348,19 @@ def load_from_local(path: str, config: dict[str, Any] | None = None) -> list[Ski
         List of loaded skills.
     """
     skills: list[Skill] = []
-    
+
     # Get configuration settings
     if config is None:
         config = {}
-    
+
     load_documents = config.get("load_skill_documents", True)
-    text_extensions = config.get("text_file_extensions", [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"])
-    image_extensions = config.get("allowed_image_extensions", [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"])
+    text_extensions = config.get(
+        "text_file_extensions",
+        [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"],
+    )
+    image_extensions = config.get(
+        "allowed_image_extensions", [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]
+    )
     max_image_size = config.get("max_image_size_bytes", 5242880)
 
     try:
@@ -470,7 +393,7 @@ def load_from_local(path: str, config: dict[str, Any] | None = None) -> list[Ski
                             logger.info(
                                 f"Loaded {len(documents)} additional documents for skill: {skill.name}"
                             )
-                    
+
                     skills.append(skill)
                     logger.info(f"Loaded skill: {skill.name} from {skill_file}")
             except Exception as e:
@@ -485,16 +408,29 @@ def load_from_local(path: str, config: dict[str, Any] | None = None) -> list[Ski
     return skills
 
 
+def _get_document_cache_dir() -> Path:
+    """Get document cache directory.
+
+    Returns
+    -------
+    Path
+        Path to document cache directory.
+    """
+    cache_dir = Path(tempfile.gettempdir()) / "claude_skills_mcp_cache" / "documents"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
 def _get_cache_path(url: str, branch: str) -> Path:
     """Get cache file path for a GitHub repository.
-    
+
     Parameters
     ----------
     url : str
         GitHub repository URL.
     branch : str
         Branch name.
-    
+
     Returns
     -------
     Path
@@ -502,24 +438,26 @@ def _get_cache_path(url: str, branch: str) -> Path:
     """
     cache_dir = Path(tempfile.gettempdir()) / "claude_skills_mcp_cache"
     cache_dir.mkdir(exist_ok=True)
-    
+
     # Create hash-based filename
     cache_key = f"{url}_{branch}"
     hash_key = hashlib.md5(cache_key.encode()).hexdigest()
-    
+
     return cache_dir / f"{hash_key}.json"
 
 
-def _load_from_cache(cache_path: Path, max_age_hours: int = 24) -> dict[str, Any] | None:
+def _load_from_cache(
+    cache_path: Path, max_age_hours: int = 24
+) -> dict[str, Any] | None:
     """Load cached GitHub API response if available and not expired.
-    
+
     Parameters
     ----------
     cache_path : Path
         Path to cache file.
     max_age_hours : int, optional
         Maximum cache age in hours, by default 24.
-    
+
     Returns
     -------
     dict[str, Any] | None
@@ -527,20 +465,20 @@ def _load_from_cache(cache_path: Path, max_age_hours: int = 24) -> dict[str, Any
     """
     if not cache_path.exists():
         return None
-    
+
     try:
-        with open(cache_path, 'r') as f:
+        with open(cache_path, "r") as f:
             cache_data = json.load(f)
-        
+
         # Check if cache is expired
-        cached_time = datetime.fromisoformat(cache_data['timestamp'])
+        cached_time = datetime.fromisoformat(cache_data["timestamp"])
         if datetime.now() - cached_time > timedelta(hours=max_age_hours):
             logger.info(f"Cache expired for {cache_path}")
             return None
-        
+
         logger.info(f"Using cached GitHub API response from {cache_path}")
-        return cache_data['tree_data']
-    
+        return cache_data["tree_data"]
+
     except Exception as e:
         logger.warning(f"Failed to load cache from {cache_path}: {e}")
         return None
@@ -548,7 +486,7 @@ def _load_from_cache(cache_path: Path, max_age_hours: int = 24) -> dict[str, Any
 
 def _save_to_cache(cache_path: Path, tree_data: dict[str, Any]) -> None:
     """Save GitHub API response to cache.
-    
+
     Parameters
     ----------
     cache_path : Path
@@ -558,17 +496,229 @@ def _save_to_cache(cache_path: Path, tree_data: dict[str, Any]) -> None:
     """
     try:
         cache_data = {
-            'timestamp': datetime.now().isoformat(),
-            'tree_data': tree_data,
+            "timestamp": datetime.now().isoformat(),
+            "tree_data": tree_data,
         }
-        with open(cache_path, 'w') as f:
+        with open(cache_path, "w") as f:
             json.dump(cache_data, f)
         logger.info(f"Saved GitHub API response to cache: {cache_path}")
     except Exception as e:
         logger.warning(f"Failed to save cache to {cache_path}: {e}")
 
 
-def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None = None) -> list[Skill]:
+def _get_document_metadata_from_github(
+    owner: str,
+    repo: str,
+    branch: str,
+    skill_dir_path: str,
+    tree_data: dict[str, Any],
+    text_extensions: list[str],
+    image_extensions: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Get document metadata from GitHub without fetching content.
+
+    Parameters
+    ----------
+    owner : str
+        GitHub repository owner.
+    repo : str
+        GitHub repository name.
+    branch : str
+        Branch name.
+    skill_dir_path : str
+        Path to the skill directory within the repo.
+    tree_data : dict[str, Any]
+        GitHub API tree data for the repository.
+    text_extensions : list[str]
+        List of allowed text file extensions.
+    image_extensions : list[str]
+        List of allowed image file extensions.
+
+    Returns
+    -------
+    dict[str, dict[str, Any]]
+        Dictionary mapping relative paths to document metadata (no content).
+    """
+    documents = {}
+
+    # Find all files in the skill directory (but not SKILL.md itself)
+    for item in tree_data.get("tree", []):
+        if item["type"] != "blob":
+            continue
+
+        item_path = item["path"]
+
+        # Skip if not in the skill directory
+        if not item_path.startswith(skill_dir_path):
+            continue
+
+        # Skip SKILL.md itself
+        if item_path.endswith("/SKILL.md") or item_path == f"{skill_dir_path}/SKILL.md":
+            continue
+
+        # Calculate relative path from skill directory
+        if skill_dir_path:
+            rel_path = item_path[len(skill_dir_path) :].lstrip("/")
+        else:
+            rel_path = item_path
+
+        if not rel_path:
+            continue
+
+        # Check file extension
+        file_ext = Path(item_path).suffix.lower()
+
+        # Store metadata for text and image files
+        if file_ext in text_extensions:
+            documents[rel_path] = {
+                "type": "text",
+                "size": item.get("size", 0),
+                "url": f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{item_path}",
+                "fetched": False,
+            }
+        elif file_ext in image_extensions:
+            documents[rel_path] = {
+                "type": "image",
+                "size": item.get("size", 0),
+                "url": f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{item_path}",
+                "fetched": False,
+            }
+
+    return documents
+
+
+def _create_document_fetcher(
+    owner: str,
+    repo: str,
+    branch: str,
+    skill_dir_path: str,
+    text_extensions: list[str],
+    image_extensions: list[str],
+    max_image_size: int,
+) -> Callable:
+    """Create a closure that fetches documents on-demand with disk caching.
+
+    Parameters
+    ----------
+    owner : str
+        GitHub repository owner.
+    repo : str
+        GitHub repository name.
+    branch : str
+        Branch name.
+    skill_dir_path : str
+        Path to the skill directory within the repo.
+    text_extensions : list[str]
+        List of allowed text file extensions.
+    image_extensions : list[str]
+        List of allowed image file extensions.
+    max_image_size : int
+        Maximum image file size in bytes.
+
+    Returns
+    -------
+    callable
+        Function that fetches a document by path.
+    """
+    cache_dir = _get_document_cache_dir()
+
+    def fetch_document(doc_path: str) -> dict[str, Any] | None:
+        """Fetch a single document with local caching.
+
+        Parameters
+        ----------
+        doc_path : str
+            Relative path to the document.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            Document content with metadata, or None if fetch failed.
+        """
+        # Build full GitHub path
+        if skill_dir_path:
+            full_path = f"{skill_dir_path}/{doc_path}"
+        else:
+            full_path = doc_path
+
+        url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{full_path}"
+
+        # Check disk cache first
+        cache_key = hashlib.md5(url.encode()).hexdigest()
+        cache_file = cache_dir / f"{cache_key}.cache"
+
+        if cache_file.exists():
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    logger.debug(f"Using cached document: {doc_path}")
+                    return cached_data
+            except Exception as e:
+                logger.warning(f"Failed to load cache for {doc_path}: {e}")
+
+        # Fetch from GitHub
+        try:
+            file_ext = Path(doc_path).suffix.lower()
+
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(url)
+                response.raise_for_status()
+
+                # Process based on file type
+                if file_ext in image_extensions:
+                    # Image file
+                    image_data = response.content
+                    file_size = len(image_data)
+
+                    if file_size > max_image_size:
+                        content = {
+                            "type": "image",
+                            "size": file_size,
+                            "size_exceeded": True,
+                            "url": url,
+                            "fetched": True,
+                        }
+                    else:
+                        base64_content = base64.b64encode(image_data).decode("utf-8")
+                        content = {
+                            "type": "image",
+                            "content": base64_content,
+                            "size": file_size,
+                            "url": url,
+                            "fetched": True,
+                        }
+                elif file_ext in text_extensions:
+                    # Text file
+                    text_content = response.text
+                    content = {
+                        "type": "text",
+                        "content": text_content,
+                        "size": len(text_content),
+                        "fetched": True,
+                    }
+                else:
+                    return None
+
+                # Save to disk cache
+                try:
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump(content, f)
+                    logger.debug(f"Cached document: {doc_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to cache document {doc_path}: {e}")
+
+                return content
+
+        except Exception as e:
+            logger.error(f"Failed to fetch document {doc_path} from {url}: {e}")
+            return None
+
+    return fetch_document
+
+
+def load_from_github(
+    url: str, subpath: str = "", config: dict[str, Any] | None = None
+) -> list[Skill]:
     """Load skills from a GitHub repository.
 
     Parameters
@@ -589,14 +739,19 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
         List of loaded skills.
     """
     skills: list[Skill] = []
-    
+
     # Get configuration settings
     if config is None:
         config = {}
-    
+
     load_documents = config.get("load_skill_documents", True)
-    text_extensions = config.get("text_file_extensions", [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"])
-    image_extensions = config.get("allowed_image_extensions", [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"])
+    text_extensions = config.get(
+        "text_file_extensions",
+        [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"],
+    )
+    image_extensions = config.get(
+        "allowed_image_extensions", [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]
+    )
     max_image_size = config.get("max_image_size_bytes", 5242880)
 
     try:
@@ -643,7 +798,7 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
                 response = client.get(api_url)
                 response.raise_for_status()
                 tree_data = response.json()
-            
+
             # Save to cache
             _save_to_cache(cache_path, tree_data)
 
@@ -678,17 +833,37 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
                         skill_dir_path = str(Path(skill_path).parent)
                         if skill_dir_path == ".":
                             skill_dir_path = ""
-                        
-                        documents = _load_documents_from_github(
-                            owner, repo, branch, skill_dir_path, tree_data,
-                            text_extensions, image_extensions, max_image_size
+
+                        # Get metadata only (lazy loading)
+                        documents = _get_document_metadata_from_github(
+                            owner,
+                            repo,
+                            branch,
+                            skill_dir_path,
+                            tree_data,
+                            text_extensions,
+                            image_extensions,
                         )
+
+                        # Create document fetcher for lazy loading
+                        fetcher = _create_document_fetcher(
+                            owner,
+                            repo,
+                            branch,
+                            skill_dir_path,
+                            text_extensions,
+                            image_extensions,
+                            max_image_size,
+                        )
+
                         skill.documents = documents
+                        skill._document_fetcher = fetcher
+
                         if documents:
                             logger.info(
-                                f"Loaded {len(documents)} additional documents for skill: {skill.name}"
+                                f"Found {len(documents)} additional documents for skill: {skill.name}"
                             )
-                    
+
                     skills.append(skill)
                     logger.info(f"Loaded skill: {skill.name} from {source}")
 
@@ -706,11 +881,11 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
                     f"Branch 'main' not found, trying 'master' for {owner}/{repo}"
                 )
                 branch = "master"
-                
+
                 # Try cache for master branch
                 cache_path = _get_cache_path(url, branch)
                 tree_data = _load_from_cache(cache_path)
-                
+
                 if tree_data is None:
                     api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
 
@@ -718,7 +893,7 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
                         response = client.get(api_url)
                         response.raise_for_status()
                         tree_data = response.json()
-                    
+
                     # Save to cache
                     _save_to_cache(cache_path, tree_data)
 
@@ -751,17 +926,37 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
                                 skill_dir_path = str(Path(skill_path).parent)
                                 if skill_dir_path == ".":
                                     skill_dir_path = ""
-                                
-                                documents = _load_documents_from_github(
-                                    owner, repo, branch, skill_dir_path, tree_data,
-                                    text_extensions, image_extensions, max_image_size
+
+                                # Get metadata only (lazy loading)
+                                documents = _get_document_metadata_from_github(
+                                    owner,
+                                    repo,
+                                    branch,
+                                    skill_dir_path,
+                                    tree_data,
+                                    text_extensions,
+                                    image_extensions,
                                 )
+
+                                # Create document fetcher for lazy loading
+                                fetcher = _create_document_fetcher(
+                                    owner,
+                                    repo,
+                                    branch,
+                                    skill_dir_path,
+                                    text_extensions,
+                                    image_extensions,
+                                    max_image_size,
+                                )
+
                                 skill.documents = documents
+                                skill._document_fetcher = fetcher
+
                                 if documents:
                                     logger.info(
-                                        f"Loaded {len(documents)} additional documents for skill: {skill.name}"
+                                        f"Found {len(documents)} additional documents for skill: {skill.name}"
                                     )
-                            
+
                             skills.append(skill)
                             logger.info(f"Loaded skill: {skill.name} from {source}")
 
@@ -784,7 +979,9 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
     return skills
 
 
-def load_all_skills(skill_sources: list[dict[str, Any]], config: dict[str, Any] | None = None) -> list[Skill]:
+def load_all_skills(
+    skill_sources: list[dict[str, Any]], config: dict[str, Any] | None = None
+) -> list[Skill]:
     """Load skills from all configured sources.
 
     Parameters

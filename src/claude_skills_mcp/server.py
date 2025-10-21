@@ -164,15 +164,17 @@ class SkillsMCPServer:
                 return await self._handle_list_skills(arguments)
             else:
                 raise ValueError(f"Unknown tool: {name}")
-    
-    async def _handle_search_skills(self, arguments: dict[str, Any]) -> list[TextContent]:
+
+    async def _handle_search_skills(
+        self, arguments: dict[str, Any]
+    ) -> list[TextContent]:
         """Handle search_skills tool calls.
-        
+
         Parameters
         ----------
         arguments : dict[str, Any]
             Tool arguments.
-        
+
         Returns
         -------
         list[TextContent]
@@ -205,17 +207,17 @@ class SkillsMCPServer:
         for i, result in enumerate(results, 1):
             response_parts.append(f"\n{'=' * 80}")
             response_parts.append(f"\nSkill {i}: {result['name']}")
-            response_parts.append(
-                f"\nRelevance Score: {result['relevance_score']:.4f}"
-            )
+            response_parts.append(f"\nRelevance Score: {result['relevance_score']:.4f}")
             response_parts.append(f"\nSource: {result['source']}")
             response_parts.append(f"\nDescription: {result['description']}")
-            
+
             # Include document count if available
             documents = result.get("documents", {})
             if documents:
-                response_parts.append(f"\nAdditional Documents: {len(documents)} file(s)")
-                
+                response_parts.append(
+                    f"\nAdditional Documents: {len(documents)} file(s)"
+                )
+
                 # List documents if requested
                 if list_documents:
                     response_parts.append("\nAvailable Documents:")
@@ -224,8 +226,10 @@ class SkillsMCPServer:
                         doc_type = doc_info.get("type", "unknown")
                         doc_size = doc_info.get("size", 0)
                         size_kb = doc_size / 1024
-                        response_parts.append(f"  - {doc_path} ({doc_type}, {size_kb:.1f} KB)")
-            
+                        response_parts.append(
+                            f"  - {doc_path} ({doc_type}, {size_kb:.1f} KB)"
+                        )
+
             response_parts.append(f"\n{'-' * 80}")
             response_parts.append("\nFull Content:\n")
 
@@ -247,15 +251,17 @@ class SkillsMCPServer:
             response_parts.append(f"\n{'=' * 80}\n")
 
         return [TextContent(type="text", text="\n".join(response_parts))]
-    
-    async def _handle_read_skill_document(self, arguments: dict[str, Any]) -> list[TextContent]:
+
+    async def _handle_read_skill_document(
+        self, arguments: dict[str, Any]
+    ) -> list[TextContent]:
         """Handle read_skill_document tool calls.
-        
+
         Parameters
         ----------
         arguments : dict[str, Any]
             Tool arguments.
-        
+
         Returns
         -------
         list[TextContent]
@@ -264,17 +270,17 @@ class SkillsMCPServer:
         skill_name = arguments.get("skill_name")
         if not skill_name:
             raise ValueError("skill_name is required")
-        
+
         document_path = arguments.get("document_path")
         include_base64 = arguments.get("include_base64", False)
-        
+
         # Find the skill by name
         skill = None
         for s in self.search_engine.skills:
             if s.name == skill_name:
                 skill = s
                 break
-        
+
         if not skill:
             return [
                 TextContent(
@@ -282,7 +288,7 @@ class SkillsMCPServer:
                     text=f"Skill '{skill_name}' not found. Please use search_skills to find valid skill names.",
                 )
             ]
-        
+
         # If no document_path provided, list all available documents
         if not document_path:
             if not skill.documents:
@@ -292,22 +298,22 @@ class SkillsMCPServer:
                         text=f"Skill '{skill_name}' has no additional documents.",
                     )
                 ]
-            
+
             response_parts = [f"Available documents for skill '{skill_name}':\n"]
             for doc_path, doc_info in sorted(skill.documents.items()):
                 doc_type = doc_info.get("type", "unknown")
                 doc_size = doc_info.get("size", 0)
                 size_kb = doc_size / 1024
                 response_parts.append(f"  - {doc_path} ({doc_type}, {size_kb:.1f} KB)")
-            
+
             return [TextContent(type="text", text="\n".join(response_parts))]
-        
+
         # Match documents by pattern
         matching_docs = {}
         for doc_path, doc_info in skill.documents.items():
             if fnmatch.fnmatch(doc_path, document_path) or doc_path == document_path:
                 matching_docs[doc_path] = doc_info
-        
+
         if not matching_docs:
             return [
                 TextContent(
@@ -315,73 +321,98 @@ class SkillsMCPServer:
                     text=f"No documents matching '{document_path}' found in skill '{skill_name}'.",
                 )
             ]
-        
+
+        # Lazy fetch: Load content for matched documents if not already loaded
+        for doc_path in matching_docs:
+            doc_info = matching_docs[doc_path]
+            # Check if content needs to be fetched
+            if not doc_info.get("fetched") and "content" not in doc_info:
+                # Fetch on-demand
+                content = skill.get_document(doc_path)
+                if content:
+                    # Update the matched doc with fetched content
+                    matching_docs[doc_path] = content
+
         # Format response based on number of matches
         response_parts = []
-        
+
         if len(matching_docs) == 1:
             # Single document - return its content
             doc_path, doc_info = list(matching_docs.items())[0]
             doc_type = doc_info.get("type")
-            
+
             if doc_type == "text":
                 response_parts.append(f"Document: {doc_path}\n")
                 response_parts.append("=" * 80)
                 response_parts.append(f"\n{doc_info.get('content', '')}")
-            
+
             elif doc_type == "image":
                 response_parts.append(f"Image: {doc_path}\n")
                 if doc_info.get("size_exceeded"):
-                    response_parts.append(f"Size: {doc_info.get('size', 0) / 1024:.1f} KB (exceeds limit)")
+                    response_parts.append(
+                        f"Size: {doc_info.get('size', 0) / 1024:.1f} KB (exceeds limit)"
+                    )
                     response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
                 elif include_base64:
-                    response_parts.append(f"Base64 Content:\n{doc_info.get('content', '')}")
+                    response_parts.append(
+                        f"Base64 Content:\n{doc_info.get('content', '')}"
+                    )
                     if "url" in doc_info:
-                        response_parts.append(f"\n\nAlternatively, access via URL: {doc_info['url']}")
+                        response_parts.append(
+                            f"\n\nAlternatively, access via URL: {doc_info['url']}"
+                        )
                 else:
                     response_parts.append(f"URL: {doc_info.get('url', 'N/A')}")
                     if "content" in doc_info:
-                        response_parts.append("\n(Set include_base64=true to get base64-encoded content)")
-        
+                        response_parts.append(
+                            "\n(Set include_base64=true to get base64-encoded content)"
+                        )
+
         else:
             # Multiple documents - list them with content
-            response_parts.append(f"Found {len(matching_docs)} documents matching '{document_path}':\n")
-            
+            response_parts.append(
+                f"Found {len(matching_docs)} documents matching '{document_path}':\n"
+            )
+
             for doc_path, doc_info in sorted(matching_docs.items()):
                 doc_type = doc_info.get("type")
                 response_parts.append(f"\n{'=' * 80}")
                 response_parts.append(f"\nDocument: {doc_path}")
                 response_parts.append(f"\nType: {doc_type}")
-                response_parts.append(f"\nSize: {doc_info.get('size', 0) / 1024:.1f} KB")
-                
+                response_parts.append(
+                    f"\nSize: {doc_info.get('size', 0) / 1024:.1f} KB"
+                )
+
                 if doc_type == "text":
                     response_parts.append("\nContent:")
                     response_parts.append("-" * 80)
                     response_parts.append(f"\n{doc_info.get('content', '')}")
-                
+
                 elif doc_type == "image":
                     if doc_info.get("size_exceeded"):
                         response_parts.append("\n(Size exceeds limit)")
                         response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
                     elif include_base64:
-                        response_parts.append(f"\nBase64 Content: {doc_info.get('content', '')}")
+                        response_parts.append(
+                            f"\nBase64 Content: {doc_info.get('content', '')}"
+                        )
                         if "url" in doc_info:
                             response_parts.append(f"\nURL: {doc_info['url']}")
                     else:
                         response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
-                
+
                 response_parts.append(f"\n{'=' * 80}")
-        
+
         return [TextContent(type="text", text="\n".join(response_parts))]
-    
+
     async def _handle_list_skills(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle list_skills tool calls.
-        
+
         Parameters
         ----------
         arguments : dict[str, Any]
             Tool arguments (empty for list_skills).
-        
+
         Returns
         -------
         list[TextContent]
@@ -389,31 +420,32 @@ class SkillsMCPServer:
         """
         if not self.search_engine.skills:
             return [TextContent(type="text", text="No skills currently loaded.")]
-        
+
         response_parts = [
             f"Total skills loaded: {len(self.search_engine.skills)}\n",
             "=" * 80,
-            "\n"
+            "\n",
         ]
-        
+
         for i, skill in enumerate(self.search_engine.skills, 1):
             # Format source as owner/repo for GitHub URLs
             import re
+
             source = skill.source
             if "github.com" in source:
                 # Extract owner/repo from GitHub URL
-                match = re.search(r'github\.com/([^/]+/[^/]+)', source)
+                match = re.search(r"github\.com/([^/]+/[^/]+)", source)
                 if match:
                     source = match.group(1)
-            
+
             doc_count = len(skill.documents)
-            
+
             response_parts.append(f"{i}. {skill.name}")
             response_parts.append(f"   Description: {skill.description}")
             response_parts.append(f"   Source: {source}")
             response_parts.append(f"   Documents: {doc_count} file(s)")
             response_parts.append("")
-        
+
         return [TextContent(type="text", text="\n".join(response_parts))]
 
     async def run(self) -> None:

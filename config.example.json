@@ -11,19 +11,15 @@
       "comment": "70+ scientific skills for bioinformatics, cheminformatics, and analysis"
     },
     {
-      "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-thinking",
-      "comment": "You can paste browser URLs directly - branch and subpath are auto-extracted"
-    },
-    {
       "type": "local",
-      "path": "~/.claude/skills"
+      "path": "~/.claude/skills",
+      "comment": "Your custom local skills (optional - directory doesn't need to exist)"
     }
   ],
   "embedding_model": "all-MiniLM-L6-v2",
   "default_top_k": 3,
-  "max_skill_content_chars": 20000,
-  "comment_max_chars": "Set to null for unlimited skill content, or an integer to truncate long skills (helps manage token usage)",
+  "max_skill_content_chars": null,
+  "comment_max_chars": "Set to an integer (e.g., 5000) to truncate skill content, or null for unlimited",
   "load_skill_documents": true,
   "comment_load_docs": "Load additional files (scripts, references, assets) from skill directories",
   "max_image_size_bytes": 5242880,

@@ -13,11 +13,11 @@ The server consists of five core components working together to provide intellig
 **Purpose**: Manages server configuration and provides sensible defaults.
 
 **Key Features**:
-- Default configuration with Anthropic Skills repository
+- Default configuration with both Anthropic and K-Dense AI scientific skills repositories
 - JSON-based config loading with validation
 - Fallback to defaults if config unavailable or malformed
-- Example config generator for easy setup
-- Support for multiple skill sources
+- Config printer (--example-config) showing default configuration
+- Support for multiple skill sources (GitHub repos and local directories)
 
 **Configuration Flow**:
 ```
@@ -67,6 +67,59 @@ Return Skill objects
 - Cache validity: 24 hours
 - Automatic invalidation after expiry
 - Dramatically reduces GitHub API usage
+
+**Lazy Document Loading**:
+
+To solve startup timeout issues (60+ seconds), documents are loaded lazily:
+
+**Problem**: Fetching all documents for 90 skills at startup caused timeouts.
+
+**Solution**: 
+1. **Startup**: Load only SKILL.md files + document metadata (paths, sizes, types, URLs)
+2. **On-Demand**: Fetch document content when `read_skill_document` is called
+3. **Memory Cache**: Cache in Skill object for repeated access
+4. **Disk Cache**: Persist to `/tmp/claude_skills_mcp_cache/documents/` for future runs
+
+**Performance Impact**:
+- Startup time: 60s → 15s (4x improvement)
+- Network requests at startup: 300+ → 90 (SKILL.md only)
+- First document access: ~200ms (network fetch + cache)
+- Subsequent access: <1ms (memory or disk cache)
+
+**Cache Directory Structure**:
+```
+/tmp/claude_skills_mcp_cache/
+├── {md5_hash}.json          # GitHub API tree cache (24h TTL)
+└── documents/
+    ├── {md5_hash}.cache     # Individual document cache (permanent)
+    ├── {md5_hash}.cache
+    └── ...
+```
+
+**Document Access Flow**:
+```
+read_skill_document called
+    ↓
+Match documents by pattern  
+    ↓
+For each matched document:
+    ↓
+Check if fetched? → Yes: Use existing content
+    ↓ No
+skill.get_document(path)
+    ↓
+Check memory cache → Found: Return
+    ↓ Not found
+Check disk cache → Found: Return
+    ↓ Not found
+Fetch from GitHub
+    ↓
+Save to disk cache
+    ↓
+Cache in memory
+    ↓
+Return content
+```
 
 ### 3. Search Engine (`search_engine.py`)
 
@@ -282,8 +335,8 @@ Following Anthropic's Agent Skills architecture:
 - Cache in temp directory for automatic cleanup
 
 **Benefits**:
-- First run: ~180 seconds (with API calls)
-- Subsequent runs: ~35 seconds (from cache)
+- First run: ~20-30 seconds (with API calls + lazy document loading)
+- Subsequent runs: ~10-15 seconds (from cache)
 - No rate limit issues during development
 
 ### Why Three Tools?

@@ -466,7 +466,18 @@ def test_anthropic_skills_repo():
         "embedding_model": "all-MiniLM-L6-v2",
         "default_top_k": 3,
         "load_skill_documents": True,
-        "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
+        "text_file_extensions": [
+            ".md",
+            ".py",
+            ".txt",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".sh",
+            ".r",
+            ".ipynb",
+            ".xml",
+        ],
         "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
         "max_image_size_bytes": 5242880,
     }
@@ -491,7 +502,7 @@ def test_anthropic_skills_repo():
 
     # Step 3: Verify document loading
     print("\n[3] Verifying document loading...")
-    
+
     skills_with_docs = [s for s in skills if len(s.documents) > 0]
     print(f"   {len(skills_with_docs)}/{len(skills)} skills have additional documents")
 
@@ -500,25 +511,40 @@ def test_anthropic_skills_repo():
         sample_skill = skills_with_docs[0]
         print(f"\n   Sample skill with documents: {sample_skill.name}")
         print(f"   Documents ({len(sample_skill.documents)}):")
-        
+
         # Show types of documents
         doc_types = {}
         for doc_path, doc_info in sample_skill.documents.items():
             doc_type = doc_info.get("type", "unknown")
             doc_types[doc_type] = doc_types.get(doc_type, 0) + 1
-            
+
             # Show first few documents
-            if len([p for p in sample_skill.documents.keys() if sample_skill.documents[p].get("type") == doc_type]) <= 3:
+            if (
+                len(
+                    [
+                        p
+                        for p in sample_skill.documents.keys()
+                        if sample_skill.documents[p].get("type") == doc_type
+                    ]
+                )
+                <= 3
+            ):
                 size_kb = doc_info.get("size", 0) / 1024
                 print(f"      - {doc_path} ({doc_type}, {size_kb:.1f} KB)")
-        
-        print(f"\n   Document types found:")
+
+        print("\n   Document types found:")
         for doc_type, count in doc_types.items():
             print(f"      - {doc_type}: {count} file(s)")
-        
+
         # Verify we have text files
-        text_docs = [p for p, info in sample_skill.documents.items() if info.get("type") == "text"]
-        assert len(text_docs) > 0 or len(skills_with_docs) > 1, "Should have at least some text documents"
+        text_docs = [
+            p
+            for p, info in sample_skill.documents.items()
+            if info.get("type") == "text"
+        ]
+        assert len(text_docs) > 0 or len(skills_with_docs) > 1, (
+            "Should have at least some text documents"
+        )
 
     # Step 4: Test search functionality
     print("\n[4] Testing semantic search...")
@@ -536,12 +562,14 @@ def test_anthropic_skills_repo():
     for query in test_queries:
         print(f"\n   Query: '{query}'")
         results = search_engine.search(query, top_k=3)
-        
+
         assert len(results) > 0, f"No results for query: {query}"
-        
+
         for i, result in enumerate(results, 1):
             doc_count = len(result.get("documents", {}))
-            print(f"      {i}. {result['name']} (score: {result['relevance_score']:.4f})")
+            print(
+                f"      {i}. {result['name']} (score: {result['relevance_score']:.4f})"
+            )
             if doc_count > 0:
                 print(f"         {doc_count} additional files")
 
@@ -551,7 +579,7 @@ def test_anthropic_skills_repo():
     print("\nTest summary:")
     print(f"  • Loaded {len(skills)} skills from official Anthropic repository")
     print(f"  • {len(skills_with_docs)} skills have additional documents")
-    print(f"  • Tested document loading with diverse file types")
+    print("  • Tested document loading with diverse file types")
     print("  • Semantic search working correctly")
     print("\nThis validates:")
     print("  1. Loading from the official Anthropic skills repository")
@@ -565,22 +593,22 @@ def test_anthropic_skills_repo():
 def test_anthropic_specific_skills():
     """
     Test specific skills from Anthropic repository including large skills and binary handling.
-    
+
     This test validates:
     1. Loading large skills like slack-gif-creator
     2. Handling of binary files (tar.gz) - should be skipped gracefully
     3. Loading Python scripts from artifacts-builder
     4. Document retrieval with read_skill_document functionality
-    
+
     Run standalone with:
         pytest tests/test_integration.py::test_anthropic_specific_skills -v -s
-    
+
     Note: Requires internet connection.
     """
     print("\n" + "=" * 80)
     print("ANTHROPIC SPECIFIC SKILLS - DETAILED TEST")
     print("=" * 80)
-    
+
     # Step 1: Configure and load skills
     print("\n[1] Loading Anthropic skills repository...")
     config = {
@@ -593,32 +621,48 @@ def test_anthropic_specific_skills():
         "embedding_model": "all-MiniLM-L6-v2",
         "default_top_k": 3,
         "load_skill_documents": True,
-        "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
+        "text_file_extensions": [
+            ".md",
+            ".py",
+            ".txt",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".sh",
+            ".r",
+            ".ipynb",
+            ".xml",
+        ],
         "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
         "max_image_size_bytes": 5242880,
     }
-    
+
     skills = load_all_skills(config["skill_sources"], config)
     print(f"   Loaded {len(skills)} skills")
-    
+
     assert len(skills) > 0, "Should load skills from Anthropic repository"
-    
+
     # Step 2: Find and validate slack-gif-creator skill
     print("\n[2] Testing slack-gif-creator skill (large skill)...")
     slack_gif_skill = None
     for skill in skills:
-        if "slack-gif-creator" in skill.name.lower() or "slack gif" in skill.name.lower():
+        if (
+            "slack-gif-creator" in skill.name.lower()
+            or "slack gif" in skill.name.lower()
+        ):
             slack_gif_skill = skill
             break
-    
+
     if slack_gif_skill:
         print(f"   Found: {slack_gif_skill.name}")
         print(f"   Content size: {len(slack_gif_skill.content)} characters")
         print(f"   Documents: {len(slack_gif_skill.documents)} files")
-        
+
         # Verify it's a substantial skill
-        assert len(slack_gif_skill.content) > 500, "slack-gif-creator should have substantial content"
-        
+        assert len(slack_gif_skill.content) > 500, (
+            "slack-gif-creator should have substantial content"
+        )
+
         # Show document types
         if slack_gif_skill.documents:
             doc_types = {}
@@ -627,91 +671,122 @@ def test_anthropic_specific_skills():
                 doc_types[doc_type] = doc_types.get(doc_type, 0) + 1
             print(f"   Document types: {doc_types}")
     else:
-        print("   ⚠ slack-gif-creator skill not found (repository structure may have changed)")
-    
+        print(
+            "   ⚠ slack-gif-creator skill not found (repository structure may have changed)"
+        )
+
     # Step 3: Find and validate artifacts-builder skill
     print("\n[3] Testing artifacts-builder skill (contains scripts)...")
     artifacts_builder_skill = None
     for skill in skills:
-        if "artifacts-builder" in skill.name.lower() or "artifact" in skill.name.lower():
+        if (
+            "artifacts-builder" in skill.name.lower()
+            or "artifact" in skill.name.lower()
+        ):
             artifacts_builder_skill = skill
             break
-    
+
     if artifacts_builder_skill:
         print(f"   Found: {artifacts_builder_skill.name}")
         print(f"   Documents: {len(artifacts_builder_skill.documents)} files")
-        
+
         # Check for Python scripts in documents
-        python_scripts = [p for p in artifacts_builder_skill.documents.keys() if p.endswith('.py')]
+        python_scripts = [
+            p for p in artifacts_builder_skill.documents.keys() if p.endswith(".py")
+        ]
         if python_scripts:
             print(f"   Python scripts found: {len(python_scripts)}")
             for script in python_scripts[:3]:  # Show first 3
                 print(f"      - {script}")
-        
+
         # Note: tar.gz files are binary and should NOT be loaded
         # This is expected behavior - we only load text files and images
-        binary_refs = [p for p in artifacts_builder_skill.documents.keys() if '.tar.gz' in p or '.gz' in p]
-        assert len(binary_refs) == 0, "Binary files (tar.gz) should not be loaded as documents"
+        binary_refs = [
+            p
+            for p in artifacts_builder_skill.documents.keys()
+            if ".tar.gz" in p or ".gz" in p
+        ]
+        assert len(binary_refs) == 0, (
+            "Binary files (tar.gz) should not be loaded as documents"
+        )
         print("   ✓ Binary files correctly excluded from document loading")
     else:
-        print("   ⚠ artifacts-builder skill not found (repository structure may have changed)")
-    
+        print(
+            "   ⚠ artifacts-builder skill not found (repository structure may have changed)"
+        )
+
     # Step 4: Test document retrieval patterns
     print("\n[4] Testing document retrieval patterns...")
-    
+
     # Find any skill with Python scripts
     skill_with_py = None
     for skill in skills:
-        py_files = [p for p in skill.documents.keys() if p.endswith('.py')]
+        py_files = [p for p in skill.documents.keys() if p.endswith(".py")]
         if py_files:
             skill_with_py = skill
             break
-    
+
     if skill_with_py:
         print(f"   Testing with: {skill_with_py.name}")
-        py_files = [p for p in skill_with_py.documents.keys() if p.endswith('.py')]
+        py_files = [p for p in skill_with_py.documents.keys() if p.endswith(".py")]
         print(f"   Python files: {len(py_files)}")
-        
-        # Verify we can access Python script content
+
+        # Verify we can access Python script content (with lazy loading)
         for py_file in py_files[:1]:  # Check first one
-            doc_info = skill_with_py.documents[py_file]
-            assert doc_info["type"] == "text", "Python scripts should be loaded as text"
-            assert "content" in doc_info, "Python scripts should have content"
-            assert len(doc_info["content"]) > 0, "Python script content should not be empty"
-            print(f"   ✓ Successfully loaded {py_file} ({len(doc_info['content'])} chars)")
-    
+            # Documents start with metadata only (lazy loading)
+            doc_metadata = skill_with_py.documents[py_file]
+            assert doc_metadata["type"] == "text", "Python scripts should be text type"
+            assert "url" in doc_metadata, "Should have URL for lazy fetching"
+
+            # Fetch the document content on-demand
+            doc_content = skill_with_py.get_document(py_file)
+            assert doc_content is not None, "Should be able to fetch document"
+            assert "content" in doc_content, "Fetched document should have content"
+            assert len(doc_content["content"]) > 0, (
+                "Python script content should not be empty"
+            )
+            print(
+                f"   ✓ Successfully fetched {py_file} ({len(doc_content['content'])} chars)"
+            )
+
     # Step 5: Verify search functionality with these skills
     print("\n[5] Testing semantic search with loaded skills...")
     search_engine = SkillSearchEngine(config["embedding_model"])
     search_engine.index_skills(skills)
-    
+
     test_searches = [
         ("create animated GIF images", ["gif", "image", "animation"]),
         ("build interactive web artifacts", ["artifact", "web", "interactive"]),
     ]
-    
+
     for query, keywords in test_searches:
         print(f"\n   Query: '{query}'")
         results = search_engine.search(query, top_k=3)
-        
+
         assert len(results) > 0, f"Should find results for: {query}"
-        print(f"   Top: {results[0]['name']} (score: {results[0]['relevance_score']:.4f})")
-        
+        print(
+            f"   Top: {results[0]['name']} (score: {results[0]['relevance_score']:.4f})"
+        )
+
         # Check if result is relevant (contains at least one keyword)
-        top_text = results[0]['name'].lower() + " " + results[0]['description'].lower()
+        top_text = results[0]["name"].lower() + " " + results[0]["description"].lower()
         has_keyword = any(kw in top_text for kw in keywords)
         if has_keyword:
-            print(f"   ✓ Relevant result found")
-    
+            print("   ✓ Relevant result found")
+
     print("\n" + "=" * 80)
     print("ANTHROPIC SPECIFIC SKILLS TEST COMPLETED!")
     print("=" * 80)
     print("\nValidation summary:")
     if slack_gif_skill:
-        print(f"  ✓ slack-gif-creator: {len(slack_gif_skill.content)} chars, {len(slack_gif_skill.documents)} docs")
+        print(
+            f"  ✓ slack-gif-creator: {len(slack_gif_skill.content)} chars, {len(slack_gif_skill.documents)} docs"
+        )
     if artifacts_builder_skill:
         print(f"  ✓ artifacts-builder: {len(artifacts_builder_skill.documents)} docs")
-        py_count = len([p for p in artifacts_builder_skill.documents.keys() if p.endswith('.py')])
+        py_count = len(
+            [p for p in artifacts_builder_skill.documents.keys() if p.endswith(".py")]
+        )
         print(f"     - {py_count} Python scripts loaded")
     print("  ✓ Binary files (tar.gz) correctly excluded")
     print("  ✓ Semantic search working with real skills")
@@ -729,24 +804,24 @@ def test_list_skills_tool():
     from src.claude_skills_mcp.server import SkillsMCPServer
     from src.claude_skills_mcp.skill_loader import load_from_github
     import asyncio
-    
+
     # Load a small set of skills for testing
     skills = load_from_github(
         "https://github.com/K-Dense-AI/claude-scientific-skills",
-        subpath="scientific-thinking"
+        subpath="scientific-thinking",
     )
-    
+
     # Create engine and server
     engine = SkillSearchEngine("all-MiniLM-L6-v2")
     engine.index_skills(skills)
     server = SkillsMCPServer(engine)
-    
+
     # Call list_skills
     result = asyncio.run(server._handle_list_skills({}))
-    
+
     # Verify output
     assert len(result) == 1
     text = result[0].text
-    
+
     assert f"Total skills loaded: {len(skills)}" in text
     print(f"\nlist_skills output:\n{text[:500]}...")
