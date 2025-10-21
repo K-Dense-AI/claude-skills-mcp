@@ -1,0 +1,20 @@
+{
+  "skill_sources": [
+    {
+      "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
+    },
+    {
+      "type": "github",
+      "url": "https://github.com/anthropics/claude-cookbooks",
+      "subpath": "skills/custom_skills"
+    },
+    {
+      "type": "local",
+      "path": "~/.claude/skills"
+    }
+  ],
+  "embedding_model": "all-MiniLM-L6-v2",
+  "default_top_k": 3
+}
+
