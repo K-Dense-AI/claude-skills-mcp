@@ -135,6 +135,22 @@ class SkillsMCPServer:
                         "required": ["skill_name"],
                     },
                 ),
+                Tool(
+                    name="list_skills",
+                    title="List All Loaded Skills",
+                    description=(
+                        "Returns a complete inventory of all loaded skills with their names, descriptions, "
+                        "sources, and document counts. Use this for exploration or debugging to see what "
+                        "skills are available. NOTE: For finding relevant skills for a specific task, use "
+                        "the 'search_skills' tool instead - it performs semantic search to find the most "
+                        "appropriate skills for your needs."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -144,6 +160,8 @@ class SkillsMCPServer:
                 return await self._handle_search_skills(arguments)
             elif name == "read_skill_document":
                 return await self._handle_read_skill_document(arguments)
+            elif name == "list_skills":
+                return await self._handle_list_skills(arguments)
             else:
                 raise ValueError(f"Unknown tool: {name}")
     
@@ -353,6 +371,48 @@ class SkillsMCPServer:
                         response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
                 
                 response_parts.append(f"\n{'=' * 80}")
+        
+        return [TextContent(type="text", text="\n".join(response_parts))]
+    
+    async def _handle_list_skills(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Handle list_skills tool calls.
+        
+        Parameters
+        ----------
+        arguments : dict[str, Any]
+            Tool arguments (empty for list_skills).
+        
+        Returns
+        -------
+        list[TextContent]
+            Complete list of all skills with metadata.
+        """
+        if not self.search_engine.skills:
+            return [TextContent(type="text", text="No skills currently loaded.")]
+        
+        response_parts = [
+            f"Total skills loaded: {len(self.search_engine.skills)}\n",
+            "=" * 80,
+            "\n"
+        ]
+        
+        for i, skill in enumerate(self.search_engine.skills, 1):
+            # Format source as owner/repo for GitHub URLs
+            import re
+            source = skill.source
+            if "github.com" in source:
+                # Extract owner/repo from GitHub URL
+                match = re.search(r'github\.com/([^/]+/[^/]+)', source)
+                if match:
+                    source = match.group(1)
+            
+            doc_count = len(skill.documents)
+            
+            response_parts.append(f"{i}. {skill.name}")
+            response_parts.append(f"   Description: {skill.description}")
+            response_parts.append(f"   Source: {source}")
+            response_parts.append(f"   Documents: {doc_count} file(s)")
+            response_parts.append("")
         
         return [TextContent(type="text", text="\n".join(response_parts))]
 

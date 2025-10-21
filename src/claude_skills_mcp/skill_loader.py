@@ -1,8 +1,12 @@
 """Skill loading and parsing functionality."""
 
 import base64
+import hashlib
+import json
 import logging
 import re
+import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -481,6 +485,89 @@ def load_from_local(path: str, config: dict[str, Any] | None = None) -> list[Ski
     return skills
 
 
+def _get_cache_path(url: str, branch: str) -> Path:
+    """Get cache file path for a GitHub repository.
+    
+    Parameters
+    ----------
+    url : str
+        GitHub repository URL.
+    branch : str
+        Branch name.
+    
+    Returns
+    -------
+    Path
+        Path to cache file.
+    """
+    cache_dir = Path(tempfile.gettempdir()) / "claude_skills_mcp_cache"
+    cache_dir.mkdir(exist_ok=True)
+    
+    # Create hash-based filename
+    cache_key = f"{url}_{branch}"
+    hash_key = hashlib.md5(cache_key.encode()).hexdigest()
+    
+    return cache_dir / f"{hash_key}.json"
+
+
+def _load_from_cache(cache_path: Path, max_age_hours: int = 24) -> dict[str, Any] | None:
+    """Load cached GitHub API response if available and not expired.
+    
+    Parameters
+    ----------
+    cache_path : Path
+        Path to cache file.
+    max_age_hours : int, optional
+        Maximum cache age in hours, by default 24.
+    
+    Returns
+    -------
+    dict[str, Any] | None
+        Cached tree data or None if cache is invalid/expired.
+    """
+    if not cache_path.exists():
+        return None
+    
+    try:
+        with open(cache_path, 'r') as f:
+            cache_data = json.load(f)
+        
+        # Check if cache is expired
+        cached_time = datetime.fromisoformat(cache_data['timestamp'])
+        if datetime.now() - cached_time > timedelta(hours=max_age_hours):
+            logger.info(f"Cache expired for {cache_path}")
+            return None
+        
+        logger.info(f"Using cached GitHub API response from {cache_path}")
+        return cache_data['tree_data']
+    
+    except Exception as e:
+        logger.warning(f"Failed to load cache from {cache_path}: {e}")
+        return None
+
+
+def _save_to_cache(cache_path: Path, tree_data: dict[str, Any]) -> None:
+    """Save GitHub API response to cache.
+    
+    Parameters
+    ----------
+    cache_path : Path
+        Path to cache file.
+    tree_data : dict[str, Any]
+        GitHub tree data to cache.
+    """
+    try:
+        cache_data = {
+            'timestamp': datetime.now().isoformat(),
+            'tree_data': tree_data,
+        }
+        with open(cache_path, 'w') as f:
+            json.dump(cache_data, f)
+        logger.info(f"Saved GitHub API response to cache: {cache_path}")
+    except Exception as e:
+        logger.warning(f"Failed to save cache to {cache_path}: {e}")
+
+
 def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None = None) -> list[Skill]:
     """Load skills from a GitHub repository.
 
@@ -545,13 +632,20 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
                 f"Loading skills from GitHub: {owner}/{repo} (branch: {branch})"
             )
 
-        # Get repository tree
-        api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+        # Get repository tree (with caching to avoid API limits)
+        cache_path = _get_cache_path(url, branch)
+        tree_data = _load_from_cache(cache_path)
 
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(api_url)
-            response.raise_for_status()
-            tree_data = response.json()
+        if tree_data is None:
+            api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(api_url)
+                response.raise_for_status()
+                tree_data = response.json()
+            
+            # Save to cache
+            _save_to_cache(cache_path, tree_data)
 
         # Find all SKILL.md files
         skill_paths = []
@@ -612,12 +706,21 @@ def load_from_github(url: str, subpath: str = "", config: dict[str, Any] | None 
                     f"Branch 'main' not found, trying 'master' for {owner}/{repo}"
                 )
                 branch = "master"
-                api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+                
+                # Try cache for master branch
+                cache_path = _get_cache_path(url, branch)
+                tree_data = _load_from_cache(cache_path)
+                
+                if tree_data is None:
+                    api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
 
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.get(api_url)
-                    response.raise_for_status()
-                    tree_data = response.json()
+                    with httpx.Client(timeout=30.0) as client:
+                        response = client.get(api_url)
+                        response.raise_for_status()
+                        tree_data = response.json()
+                    
+                    # Save to cache
+                    _save_to_cache(cache_path, tree_data)
 
                 # Repeat the loading process with master branch
                 skill_paths = []

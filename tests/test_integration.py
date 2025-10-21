@@ -721,3 +721,32 @@ def test_anthropic_specific_skills():
     print("  3. Binary files are gracefully skipped")
     print("  4. Document structure is correct and accessible")
     print("=" * 80 + "\n")
+
+
+@pytest.mark.integration
+def test_list_skills_tool():
+    """Test that list_skills returns all loaded skills."""
+    from src.claude_skills_mcp.server import SkillsMCPServer
+    from src.claude_skills_mcp.skill_loader import load_from_github
+    import asyncio
+    
+    # Load a small set of skills for testing
+    skills = load_from_github(
+        "https://github.com/K-Dense-AI/claude-scientific-skills",
+        subpath="scientific-thinking"
+    )
+    
+    # Create engine and server
+    engine = SkillSearchEngine("all-MiniLM-L6-v2")
+    engine.index_skills(skills)
+    server = SkillsMCPServer(engine)
+    
+    # Call list_skills
+    result = asyncio.run(server._handle_list_skills({}))
+    
+    # Verify output
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert f"Total skills loaded: {len(skills)}" in text
+    print(f"\nlist_skills output:\n{text[:500]}...")
