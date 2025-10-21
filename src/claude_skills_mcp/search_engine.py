@@ -17,8 +17,10 @@ class SkillSearchEngine:
 
     Attributes
     ----------
-    model : SentenceTransformer
-        Embedding model for generating vectors.
+    model : SentenceTransformer | None
+        Embedding model for generating vectors (lazy-loaded).
+    model_name : str
+        Name of the sentence-transformers model to use.
     skills : list[Skill]
         List of indexed skills.
     embeddings : np.ndarray | None
@@ -35,12 +37,26 @@ class SkillSearchEngine:
         model_name : str
             Name of the sentence-transformers model to use.
         """
-        logger.info(f"Loading embedding model: {model_name}")
-        self.model = SentenceTransformer(model_name)
+        logger.info(f"Search engine initialized (model: {model_name}, lazy-loading enabled)")
+        self.model: SentenceTransformer | None = None
+        self.model_name = model_name
         self.skills: list[Skill] = []
         self.embeddings: np.ndarray | None = None
         self._lock = threading.Lock()
-        logger.info(f"Embedding model loaded: {model_name}")
+
+    def _ensure_model_loaded(self) -> SentenceTransformer:
+        """Ensure the embedding model is loaded (lazy initialization).
+
+        Returns
+        -------
+        SentenceTransformer
+            The loaded embedding model.
+        """
+        if self.model is None:
+            logger.info(f"Loading embedding model: {self.model_name}")
+            self.model = SentenceTransformer(self.model_name)
+            logger.info(f"Embedding model loaded: {self.model_name}")
+        return self.model
 
     def index_skills(self, skills: list[Skill]) -> None:
         """Index a list of skills by generating their embeddings.
@@ -62,7 +78,8 @@ class SkillSearchEngine:
 
             # Generate embeddings from skill descriptions
             descriptions = [skill.description for skill in skills]
-            self.embeddings = self.model.encode(descriptions, convert_to_numpy=True)
+            model = self._ensure_model_loaded()
+            self.embeddings = model.encode(descriptions, convert_to_numpy=True)
 
             logger.info(f"Successfully indexed {len(skills)} skills")
 
@@ -82,7 +99,8 @@ class SkillSearchEngine:
 
             # Generate embeddings for new skills
             descriptions = [skill.description for skill in skills]
-            new_embeddings = self.model.encode(descriptions, convert_to_numpy=True)
+            model = self._ensure_model_loaded()
+            new_embeddings = model.encode(descriptions, convert_to_numpy=True)
 
             # Append to existing skills and embeddings
             self.skills.extend(skills)
@@ -124,7 +142,8 @@ class SkillSearchEngine:
             logger.info(f"Searching for: '{query}' (top_k={top_k})")
 
             # Generate embedding for the query
-            query_embedding = self.model.encode([query], convert_to_numpy=True)[0]
+            model = self._ensure_model_loaded()
+            query_embedding = model.encode([query], convert_to_numpy=True)[0]
 
             # Compute cosine similarity
             similarities = self._cosine_similarity(query_embedding, self.embeddings)

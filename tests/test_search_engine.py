@@ -6,12 +6,20 @@ from src.claude_skills_mcp.search_engine import SkillSearchEngine
 
 
 def test_search_engine_initialization():
-    """Test search engine initialization."""
+    """Test search engine initialization with lazy model loading."""
     engine = SkillSearchEngine("all-MiniLM-L6-v2")
 
-    assert engine.model is not None
+    # Model should be None initially (lazy loading)
+    assert engine.model is None
+    assert engine.model_name == "all-MiniLM-L6-v2"
     assert engine.skills == []
     assert engine.embeddings is None
+    
+    # Model should be loaded when ensure_model_loaded is called
+    model = engine._ensure_model_loaded()
+    assert model is not None
+    assert engine.model is not None
+    assert engine.model == model
 
 
 def test_index_skills(mock_skills):

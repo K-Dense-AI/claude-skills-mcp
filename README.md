@@ -25,7 +25,17 @@ This MCP server enables any MCP-compatible AI assistant to intelligently search 
 
 ## Quick Start
 
-### Using uvx (Recommended)
+### For Cursor Users
+
+Install with one command (handles everything automatically):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/K-Dense-AI/claude-skills-mcp/main/setup-cursor.sh | bash
+```
+
+Then restart Cursor. See [Setup Instructions](#cursor-recommended) for details.
+
+### Using uvx (Standalone)
 
 Run the server with default configuration (no installation required):
 
@@ -51,10 +61,57 @@ uvx claude-skills-mcp --config config.json
 
 ## Setup for Your AI Assistant
 
-### Cursor
+### Cursor (Recommended)
 
-Add to your MCP settings (`~/.cursor/mcp.json`):
+**⚠️ Important**: To avoid startup timeout issues, run our one-line setup script **before** configuring Cursor.
 
+#### Quick Install (One Command)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/K-Dense-AI/claude-skills-mcp/main/setup-cursor.sh | bash
+```
+
+This script will:
+- ✅ Install `uv` if needed (no root/sudo required)
+- ✅ Pre-download all dependencies (~250 MB, one-time)
+- ✅ Auto-configure Cursor's MCP settings
+- ✅ Takes 60-120 seconds on first run
+
+**Then restart Cursor** and you're done! 🎉
+
+The script is **completely safe**:
+- No root access required
+- Installs only to your home directory (`~/.cargo`, `~/.cache`, `~/.cursor`)
+- Creates backups of existing configurations
+- [View source code](https://github.com/K-Dense-AI/claude-skills-mcp/blob/main/setup-cursor.sh)
+
+---
+
+**Alternative: Cursor Directory (Visual Setup)**
+
+You can also add this MCP server through Cursor's UI:
+
+1. Visit [Claude Skills MCP on Cursor Directory](https://cursor.directory/mcp/claude-skills-mcp)
+2. Click "Add MCP server to Cursor"
+3. **Important**: Run the pre-cache command first to avoid timeouts:
+   ```bash
+   uvx claude-skills-mcp --help
+   ```
+
+---
+
+<details>
+<summary>Manual Configuration (Advanced)</summary>
+
+If you prefer to configure manually:
+
+**Step 1: Pre-cache dependencies** (critical to avoid timeout):
+```bash
+uvx claude-skills-mcp --help
+```
+Wait for it to complete (~60-120 seconds).
+
+**Step 2: Add to Cursor's MCP settings** (`~/.cursor/mcp.json`):
 ```json
 {
   "mcpServers": {
@@ -66,7 +123,10 @@ Add to your MCP settings (`~/.cursor/mcp.json`):
 }
 ```
 
-Restart Cursor and the skills will be available to the AI assistant.
+**Step 3: Restart Cursor**
+
+Your configuration will use `uvx` which auto-updates the server when new versions are released.
+</details>
 
 ### Claude Desktop
 
@@ -225,6 +285,48 @@ The server is designed to be resilient:
 - If a local folder is inaccessible, it logs a warning and continues
 - If a GitHub repo fails to load, it tries alternate branches and continues
 - If no skills are loaded, the server exits with an error message
+
+## Troubleshooting
+
+### Cursor Startup Timeout
+
+**Problem**: Cursor shows "MCP server failed to start" or timeout errors.
+
+**Solution**: Run the setup script before configuring Cursor:
+```bash
+curl -sSL https://raw.githubusercontent.com/K-Dense-AI/claude-skills-mcp/main/setup-cursor.sh | bash
+```
+
+This pre-downloads all dependencies (~250 MB) so Cursor can start the server quickly (5-10 seconds).
+
+**Why this happens**: On first run, `uvx` needs to download dependencies including PyTorch (~150 MB) and sentence-transformers (~50 MB), which can take 60-180 seconds and exceed Cursor's startup timeout.
+
+### Manual Pre-Caching
+
+If you prefer not to use the setup script, you can manually pre-cache:
+
+```bash
+uvx claude-skills-mcp --help
+```
+
+Wait for it to complete (~60-120 seconds), then configure Cursor normally.
+
+### Slow First Search
+
+**Expected behavior**: The first search after server startup takes 3-5 seconds to load the embedding model (~100 MB download, one-time).
+
+This is normal and only happens once. The model is cached permanently at `~/.cache/huggingface/`.
+
+### Skills Not Loading
+
+**Problem**: Search returns no results or "No skills loaded".
+
+**Check**:
+1. Network connectivity (for GitHub sources)
+2. GitHub API rate limits (60 requests/hour without token)
+3. Verbose logs: `uvx claude-skills-mcp --verbose`
+
+**Solution**: Use local skills or wait for rate limit reset.
 
 ## Docker Deployment
 
