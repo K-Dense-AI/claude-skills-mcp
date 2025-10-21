@@ -157,9 +157,12 @@ def load_from_github(url: str, subpath: str = "") -> list[Skill]:
     Parameters
     ----------
     url : str
-        GitHub repository URL.
+        GitHub repository URL. Can be:
+        - Base repo URL: https://github.com/owner/repo
+        - URL with branch and subpath: https://github.com/owner/repo/tree/branch/subpath
     subpath : str, optional
         Subdirectory within the repo to search, by default "".
+        If the URL already contains a subpath, this parameter is ignored.
 
     Returns
     -------
@@ -169,7 +172,7 @@ def load_from_github(url: str, subpath: str = "") -> list[Skill]:
     skills: list[Skill] = []
 
     try:
-        # Parse GitHub URL to extract owner, repo, and branch
+        # Parse GitHub URL to extract owner, repo, branch, and subpath
         parsed = urlparse(url)
         path_parts = parsed.path.strip("/").split("/")
 
@@ -180,8 +183,22 @@ def load_from_github(url: str, subpath: str = "") -> list[Skill]:
         owner = path_parts[0]
         repo = path_parts[1]
         branch = "main"  # Default branch
+        
+        # Check if URL contains /tree/{branch}/{subpath} format
+        # e.g., https://github.com/owner/repo/tree/main/subdirectory
+        if len(path_parts) > 3 and path_parts[2] == "tree":
+            branch = path_parts[3]
+            # Extract subpath from URL if provided (overrides subpath parameter)
+            if len(path_parts) > 4:
+                url_subpath = "/".join(path_parts[4:])
+                if not subpath:  # Only use URL subpath if not explicitly provided
+                    subpath = url_subpath
+                    logger.info(f"Extracted subpath from URL: {subpath}")
 
-        logger.info(f"Loading skills from GitHub: {owner}/{repo}")
+        if subpath:
+            logger.info(f"Loading skills from GitHub: {owner}/{repo} (branch: {branch}, subpath: {subpath})")
+        else:
+            logger.info(f"Loading skills from GitHub: {owner}/{repo} (branch: {branch})")
 
         # Get repository tree
         api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"

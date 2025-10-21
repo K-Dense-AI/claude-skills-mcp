@@ -6,6 +6,11 @@
     },
     {
       "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-thinking",
+      "comment": "You can paste browser URLs directly - branch and subpath are auto-extracted"
+    },
+    {
+      "type": "github",
       "url": "https://github.com/anthropics/claude-cookbooks",
       "subpath": "skills/custom_skills"
     },

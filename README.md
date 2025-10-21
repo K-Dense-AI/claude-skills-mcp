@@ -106,6 +106,10 @@ If no config file is specified, the server uses these defaults:
     },
     {
       "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-thinking"
+    },
+    {
+      "type": "github",
       "url": "https://github.com/anthropics/claude-cookbooks",
       "subpath": "skills/custom_skills"
     },
@@ -123,8 +127,10 @@ If no config file is specified, the server uses these defaults:
 
 - **skill_sources**: Array of skill source configurations
   - **type**: Either `"github"` or `"local"`
-  - **url**: GitHub repository URL (for github type)
-  - **subpath**: Optional subdirectory within the repo
+  - **url**: GitHub repository URL (for github type). Supports:
+    - Base repo: `https://github.com/owner/repo`
+    - With subpath: `https://github.com/owner/repo/tree/branch/subpath`
+  - **subpath**: Optional subdirectory within the repo (alternative to URL-based subpath)
   - **path**: Local directory path (for local type)
 - **embedding_model**: Name of the sentence-transformers model (default: `"all-MiniLM-L6-v2"`)
 - **default_top_k**: Default number of skills to return (default: `3`)
