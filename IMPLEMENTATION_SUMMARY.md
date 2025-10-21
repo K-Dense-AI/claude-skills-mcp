@@ -3,6 +3,8 @@
 ## Overview
 Enhanced the Claude Skills MCP server to load and expose all content from skill directories (scripts, references, assets) in addition to the main SKILL.md file. Added a new MCP tool `read_skill_document` for retrieving specific skill documents.
 
+**Fully supports the official [Anthropic Skills repository](https://github.com/anthropics/skills)** with diverse file types including Python scripts (.py), XML files (.xml), images (.png, .jpg, .svg), and other rich media content.
+
 ## Changes Implemented
 
 ### 1. Configuration Updates (`config.py`)
@@ -131,9 +133,45 @@ Updated to include document information:
 - **Size Limits:** Configurable to prevent excessive memory usage
 - **Backwards Compatibility:** All existing functionality preserved; document loading can be disabled
 
+## Supported File Types
+
+### Text Files (Loaded with Full Content)
+- Python scripts (.py)
+- Markdown files (.md)
+- JSON files (.json)
+- YAML files (.yaml, .yml)
+- XML files (.xml) - **newly added**
+- Shell scripts (.sh)
+- R scripts (.r)
+- Jupyter notebooks (.ipynb)
+- Plain text (.txt)
+
+### Images (Base64 Encoded or URL)
+- PNG (.png)
+- JPEG (.jpg, .jpeg)
+- GIF (.gif)
+- SVG (.svg)
+- WebP (.webp)
+
+Size limit: 5MB (configurable). Images exceeding the limit store URL only.
+
+### Not Currently Supported
+- PDF files (.pdf) - Binary format requiring special parsing (future enhancement)
+- Video files - Deferred to future enhancement
+- Other binary formats
+
+## Anthropic Skills Repository Compatibility
+The implementation is fully compatible with the [official Anthropic Skills repository](https://github.com/anthropics/skills), which contains:
+- Python scripts for automation and skill logic
+- XML configuration files
+- Images for documentation and visual examples
+- JSON and YAML for data and configuration
+- Diverse skill examples showcasing various file types
+
 ## Future Enhancements
 - Add caching for GitHub API responses
 - Support for GitHub authentication to increase rate limits
+- PDF parsing support for document skills
 - Support for additional file types (videos, data files)
 - Compression for large text files
 - Streaming support for large documents

@@ -30,7 +30,7 @@ Run the server with default configuration (no installation required):
 uvx claude-skills-mcp
 ```
 
-This automatically loads skills from the [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository - a curated collection of 70+ scientific skills for bioinformatics, cheminformatics, and scientific analysis.
+This automatically loads skills from the [official Anthropic Skills repository](https://github.com/anthropics/skills) - featuring diverse, production-ready examples including document creation, web development, testing, and creative applications with Python scripts, images, and rich media content.
 
 ### With Custom Configuration
 
@@ -97,7 +97,7 @@ If no config file is specified, the server uses these defaults:
   "skill_sources": [
     {
       "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
+      "url": "https://github.com/anthropics/skills"
     }
   ],
   "embedding_model": "all-MiniLM-L6-v2",
@@ -113,16 +113,11 @@ If no config file is specified, the server uses these defaults:
   "skill_sources": [
     {
       "type": "github",
+      "url": "https://github.com/anthropics/skills"
+    },
+    {
+      "type": "github",
       "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
-    },
-    {
-      "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-thinking"
-    },
-    {
-      "type": "github",
-      "url": "https://github.com/anthropics/claude-cookbooks",
-      "subpath": "skills/custom_skills"
     },
     {
       "type": "local",
@@ -153,7 +148,7 @@ If no config file is specified, the server uses these defaults:
 - **load_skill_documents**: Load additional files from skill directories (default: `true`)
 - **max_image_size_bytes**: Maximum size for base64-encoding images (default: `5242880` = 5MB)
 - **allowed_image_extensions**: Supported image file types (default: `[".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]`)
-- **text_file_extensions**: Supported text file types (default: `[".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"]`)
+- **text_file_extensions**: Supported text file types (default: `[".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"]`)
 
 ## MCP Tools
 
@@ -281,8 +276,8 @@ The server can load skills from:
 - Claude Code plugin repositories (with .claude-plugin/marketplace.json)
 
 Examples:
-- [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 70+ scientific skills (default)
-- [Anthropic Custom Skills](https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills)
+- [Official Anthropic Skills](https://github.com/anthropics/skills) - Production-ready skills with Python scripts, images, and diverse content (default)
+- [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 70+ specialized scientific skills for bioinformatics, cheminformatics, and research
 
 ### Local Directories
 

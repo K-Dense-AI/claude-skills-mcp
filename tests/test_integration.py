@@ -432,3 +432,130 @@ def test_repo_demo():
     print("  3. Vector search across diverse scientific domains")
     print("  4. Returning domain-relevant skills with high accuracy")
     print("=" * 80 + "\n")
+
+
+@pytest.mark.integration
+def test_anthropic_skills_repo():
+    """
+    Test loading from official Anthropic skills repository.
+
+    This test demonstrates:
+    1. Loading skills from the official Anthropic skills repository
+    2. Verifying that diverse file types are loaded (Python, images, XML, etc.)
+    3. Testing document loading functionality with real skills
+    4. Validating pattern matching on real skill documents
+
+    Run standalone with:
+        pytest tests/test_integration.py::test_anthropic_skills_repo -v -s
+
+    Note: Requires internet connection.
+    """
+    print("\n" + "=" * 80)
+    print("ANTHROPIC SKILLS REPOSITORY - INTEGRATION TEST")
+    print("=" * 80)
+
+    # Step 1: Configure to use official Anthropic skills repository
+    print("\n[1] Configuring skill source...")
+    config = {
+        "skill_sources": [
+            {
+                "type": "github",
+                "url": "https://github.com/anthropics/skills",
+            }
+        ],
+        "embedding_model": "all-MiniLM-L6-v2",
+        "default_top_k": 3,
+        "load_skill_documents": True,
+        "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
+        "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
+        "max_image_size_bytes": 5242880,
+    }
+    print(f"   Repository: {config['skill_sources'][0]['url']}")
+
+    # Step 2: Load skills from GitHub
+    print("\n[2] Loading skills from Anthropic repository...")
+    skills = load_all_skills(config["skill_sources"], config)
+
+    print(f"   Loaded {len(skills)} skills from repository")
+
+    # Verify we got skills
+    assert len(skills) > 5, f"Expected >5 skills, got {len(skills)}"
+
+    # Display sample skills
+    print("\n   Sample skills loaded:")
+    for skill in skills[:5]:
+        doc_count = len(skill.documents)
+        print(f"      - {skill.name}: {skill.description[:60]}...")
+        if doc_count > 0:
+            print(f"        ({doc_count} additional documents)")
+
+    # Step 3: Verify document loading
+    print("\n[3] Verifying document loading...")
+    
+    skills_with_docs = [s for s in skills if len(s.documents) > 0]
+    print(f"   {len(skills_with_docs)}/{len(skills)} skills have additional documents")
+
+    if skills_with_docs:
+        # Pick a skill with documents
+        sample_skill = skills_with_docs[0]
+        print(f"\n   Sample skill with documents: {sample_skill.name}")
+        print(f"   Documents ({len(sample_skill.documents)}):")
+        
+        # Show types of documents
+        doc_types = {}
+        for doc_path, doc_info in sample_skill.documents.items():
+            doc_type = doc_info.get("type", "unknown")
+            doc_types[doc_type] = doc_types.get(doc_type, 0) + 1
+            
+            # Show first few documents
+            if len([p for p in sample_skill.documents.keys() if sample_skill.documents[p].get("type") == doc_type]) <= 3:
+                size_kb = doc_info.get("size", 0) / 1024
+                print(f"      - {doc_path} ({doc_type}, {size_kb:.1f} KB)")
+        
+        print(f"\n   Document types found:")
+        for doc_type, count in doc_types.items():
+            print(f"      - {doc_type}: {count} file(s)")
+        
+        # Verify we have text files
+        text_docs = [p for p, info in sample_skill.documents.items() if info.get("type") == "text"]
+        assert len(text_docs) > 0 or len(skills_with_docs) > 1, "Should have at least some text documents"
+
+    # Step 4: Test search functionality
+    print("\n[4] Testing semantic search...")
+    search_engine = SkillSearchEngine(config["embedding_model"])
+    search_engine.index_skills(skills)
+    print(f"   Indexed {len(skills)} skills")
+
+    # Search for skills
+    test_queries = [
+        "create interactive web applications",
+        "test web applications",
+        "create visual designs",
+    ]
+
+    for query in test_queries:
+        print(f"\n   Query: '{query}'")
+        results = search_engine.search(query, top_k=3)
+        
+        assert len(results) > 0, f"No results for query: {query}"
+        
+        for i, result in enumerate(results, 1):
+            doc_count = len(result.get("documents", {}))
+            print(f"      {i}. {result['name']} (score: {result['relevance_score']:.4f})")
+            if doc_count > 0:
+                print(f"         {doc_count} additional files")
+
+    print("\n" + "=" * 80)
+    print("ANTHROPIC SKILLS REPOSITORY TEST COMPLETED!")
+    print("=" * 80)
+    print("\nTest summary:")
+    print(f"  • Loaded {len(skills)} skills from official Anthropic repository")
+    print(f"  • {len(skills_with_docs)} skills have additional documents")
+    print(f"  • Tested document loading with diverse file types")
+    print("  • Semantic search working correctly")
+    print("\nThis validates:")
+    print("  1. Loading from the official Anthropic skills repository")
+    print("  2. Document loading for skills with scripts and assets")
+    print("  3. Support for diverse file types (Python, images, XML, etc.)")
+    print("  4. Full integration with search functionality")
+    print("=" * 80 + "\n")

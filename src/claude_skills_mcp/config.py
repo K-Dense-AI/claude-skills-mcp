@@ -11,7 +11,7 @@ DEFAULT_CONFIG = {
     "skill_sources": [
         {
             "type": "github",
-            "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
+            "url": "https://github.com/anthropics/skills",
         }
     ],
     "embedding_model": "all-MiniLM-L6-v2",
@@ -20,7 +20,7 @@ DEFAULT_CONFIG = {
     "load_skill_documents": True,  # Load additional files from skill directories
     "max_image_size_bytes": 5242880,  # 5MB limit for image files
     "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
-    "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"],
+    "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
 }
 
 
@@ -75,12 +75,13 @@ def get_example_config() -> str:
         "skill_sources": [
             {
                 "type": "github",
-                "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
+                "url": "https://github.com/anthropics/skills",
+                "comment": "Official Anthropic skills - diverse examples including Python scripts, images, and more",
             },
             {
                 "type": "github",
-                "url": "https://github.com/anthropics/claude-cookbooks",
-                "subpath": "skills/custom_skills",
+                "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
+                "comment": "70+ scientific skills for bioinformatics, cheminformatics, and analysis",
             },
             {"type": "local", "path": "~/.claude/skills"},
         ],
@@ -90,6 +91,6 @@ def get_example_config() -> str:
         "load_skill_documents": True,
         "max_image_size_bytes": 5242880,
         "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
-        "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"],
+        "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
     }
     return json.dumps(example, indent=2)

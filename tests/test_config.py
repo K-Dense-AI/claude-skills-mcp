@@ -75,10 +75,10 @@ def test_default_config_structure():
     assert isinstance(DEFAULT_CONFIG["skill_sources"], list)
     assert len(DEFAULT_CONFIG["skill_sources"]) > 0
 
-    # Check first source is the K-Dense-AI repo
+    # Check first source is the official Anthropic skills repo
     first_source = DEFAULT_CONFIG["skill_sources"][0]
     assert first_source["type"] == "github"
-    assert "K-Dense-AI/claude-scientific-skills" in first_source["url"]
+    assert "anthropics/skills" in first_source["url"]
 
 
 @pytest.mark.parametrize("top_k", [1, 3, 5, 10])

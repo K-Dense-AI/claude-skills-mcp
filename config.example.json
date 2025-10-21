@@ -2,17 +2,18 @@
   "skill_sources": [
     {
       "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
+      "url": "https://github.com/anthropics/skills",
+      "comment": "Official Anthropic skills - diverse examples with Python scripts, images, documents"
+    },
+    {
+      "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
+      "comment": "70+ scientific skills for bioinformatics, cheminformatics, and analysis"
     },
     {
       "type": "github",
       "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-thinking",
       "comment": "You can paste browser URLs directly - branch and subpath are auto-extracted"
-    },
-    {
-      "type": "github",
-      "url": "https://github.com/anthropics/claude-cookbooks",
-      "subpath": "skills/custom_skills"
     },
     {
       "type": "local",
@@ -28,6 +29,6 @@
   "max_image_size_bytes": 5242880,
   "comment_max_image": "Maximum image file size (5MB). Larger images store URL only",
   "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
-  "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"]
+  "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"]
 }
 
