@@ -1,308 +1,260 @@
 # Testing Guide
 
-## Quick Test
+This guide provides comprehensive testing instructions beyond the Quick Start in the main README.
 
-Run the test suite with pytest (coverage enabled by default):
+## Test Suite Overview
+
+**40 tests total:**
+- 9 configuration tests
+- 12 skill loading tests  
+- 11 search engine tests
+- 4 GitHub URL parsing tests
+- 4 integration tests (includes local + repo demos)
+
+## Running Tests
+
+### Quick Commands
 
 ```bash
+# All tests (with coverage)
 uv run pytest tests/
-```
 
-Run only unit tests (fast):
-
-```bash
+# Unit tests only (fast, ~20s)
 uv run pytest tests/ -m "not integration"
-```
 
-Run the local demo integration test:
+# Integration tests only (requires internet)
+uv run pytest tests/ -m "integration"
 
-```bash
+# Specific test file
+uv run pytest tests/test_search_engine.py -v
+
+# Specific test
 uv run pytest tests/test_integration.py::test_local_demo -v -s
 ```
 
-Run the repository demo (tests with real GitHub skills):
+## Integration Test Demos
 
-```bash
-uv run pytest tests/test_integration.py::test_repo_demo -v -s
-```
+### Local Demo Test
 
-Expected output:
-- ✓ All configuration tests pass
-- ✓ Skill loading tests pass
-- ✓ Search engine tests pass
-- ✓ Integration tests demonstrate full workflow
-- ✓ Coverage report showing tested lines
-
-## Manual Server Testing
-
-### 1. Run the Server
-
-```bash
-uv run claude-skills-mcp --verbose
-```
-
-The server will:
-1. Load the default K-Dense-AI scientific skills from GitHub
-2. Download and cache the embedding model (first run only)
-3. Index all skills
-4. Start the MCP server on stdio
-
-### 2. Test with MCP Client
-
-You can test the server with any MCP client. The server communicates via stdio using the Model Context Protocol.
-
-#### Example MCP Request (JSON-RPC over stdio)
-
-**List Tools:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/list",
-  "params": {}
-}
-```
-
-**Call search_skills:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/call",
-  "params": {
-    "name": "search_skills",
-    "arguments": {
-      "task_description": "I need to analyze RNA sequencing data",
-      "top_k": 3
-    }
-  }
-}
-```
-
-## Integration Testing with Claude Desktop
-
-### 1. Add to Claude Desktop Config
-
-macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "claude-skills": {
-      "command": "uvx",
-      "args": ["claude-skills-mcp"]
-    }
-  }
-}
-```
-
-### 2. Restart Claude Desktop
-
-The skills server will now be available as an MCP tool.
-
-### 3. Test in Claude
-
-Ask Claude something like:
-- "Search for skills to help me analyze gene expression data"
-- "Find skills for protein structure prediction"
-- "What skills are available for drug discovery?"
-
-Claude should invoke the `search_skills` tool and return relevant skills.
-
-## Testing Custom Configuration
-
-### 1. Create Test Config
-
-```bash
-cat > test-config.json << 'EOF'
-{
-  "skill_sources": [
-    {
-      "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
-    }
-  ],
-  "embedding_model": "all-MiniLM-L6-v2",
-  "default_top_k": 5
-}
-EOF
-```
-
-### 2. Run with Custom Config
-
-```bash
-uv run claude-skills-mcp --config test-config.json --verbose
-```
-
-## Performance Testing
-
-### Startup Time
-
-```bash
-time uv run claude-skills-mcp &
-# First run: ~10-15 seconds (downloads embedding model)
-# Subsequent runs: ~5-7 seconds (uses cached model)
-```
-
-### Search Performance
-
-The search engine should return results in <1 second after indexing.
-
-## Debugging
-
-### Enable Verbose Logging
-
-```bash
-uv run claude-skills-mcp --verbose
-```
-
-This shows:
-- Configuration loading
-- Skill discovery and loading
-- Embedding generation
-- Search queries and results
-- MCP protocol messages
-
-### Common Issues
-
-**Issue: No skills loaded**
-- Check internet connection
-- Verify GitHub URL is correct
-- Check GitHub API rate limit (60 req/hour for unauthenticated)
-
-**Issue: Model download fails**
-- Check internet connection
-- Ensure enough disk space (~100MB for model)
-- Check Hugging Face access
-
-**Issue: Import errors**
-- Run `uv sync` to install dependencies
-- Verify Python 3.12 is being used
-
-## Testing Local Skills
-
-### 1. Create Test Skill
-
-```bash
-mkdir -p /tmp/test-skills/my-skill
-cat > /tmp/test-skills/my-skill/SKILL.md << 'EOF'
----
-name: Test Skill
-description: A test skill for validation purposes
----
-
-# Test Skill
-
-This is a test skill to verify local skill loading works correctly.
-
-## Usage
-
-Just a test!
-EOF
-```
-
-### 2. Create Config with Local Path
-
-```bash
-cat > local-test-config.json << 'EOF'
-{
-  "skill_sources": [
-    {
-      "type": "local",
-      "path": "/tmp/test-skills"
-    }
-  ],
-  "embedding_model": "all-MiniLM-L6-v2",
-  "default_top_k": 3
-}
-EOF
-```
-
-### 3. Run Server
-
-```bash
-uv run claude-skills-mcp --config local-test-config.json --verbose
-```
-
-Should see:
-```
-INFO:src.claude_skills_mcp.skill_loader:Loaded skill: Test Skill from /tmp/test-skills/my-skill/SKILL.md
-```
-
-## Automated Testing
-
-### Unit Tests
-
-Run all unit tests:
-
-```bash
-pytest tests/ -v -m "not integration"
-```
-
-Run specific test files:
-
-```bash
-pytest tests/test_config.py -v
-pytest tests/test_skill_loader.py -v  
-pytest tests/test_search_engine.py -v
-```
-
-### Integration Tests
-
-Run all integration tests:
-
-```bash
-pytest tests/ -v -m "integration"
-```
-
-Run the local demo:
+Demonstrates creating temporary local skills and performing semantic search:
 
 ```bash
 pytest tests/test_integration.py::test_local_demo -v -s
 ```
 
-Run the repository demo (tests real GitHub skills):
+**What it does:**
+1. Creates 3 temporary skills (Bioinformatics, ML, Visualization)
+2. Indexes them with embeddings
+3. Performs 3 semantic searches
+4. Validates correct skills are returned with good scores
+
+**Output shows:**
+- Skill loading process
+- Indexing progress
+- Query-by-query results with relevance scores
+- Validation that correct skills match queries
+
+### Repository Demo Test
+
+Demonstrates loading real skills from K-Dense AI repository:
 
 ```bash
 pytest tests/test_integration.py::test_repo_demo -v -s
 ```
 
-### Coverage Reports
+**What it does:**
+1. Loads 70+ skills from GitHub
+2. Verifies expected skills exist (biopython, rdkit, scanpy, etc.)
+3. Tests 4 domain-specific queries
+4. Validates search quality across scientific domains
 
-**Coverage is enabled by default** in the pytest configuration. Every test run shows coverage statistics.
+**Output shows:**
+- Skills loaded from GitHub
+- Domain-specific search results
+- Relevance scores for each query
+- Validation of skill metadata quality
 
-Generate interactive HTML coverage report:
+## Testing with MCP Clients
 
+### Option 1: Claude Desktop (Recommended)
+
+**Setup:**
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+
+```json
+{
+  "mcpServers": {
+    "claude-skills-local": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/yourusername/path/to/claude-skills-mcp",
+        "run",
+        "claude-skills-mcp",
+        "--verbose"
+      ]
+    }
+  }
+}
+```
+
+**Test queries in Claude:**
+- "What skills can help me analyze RNA sequencing data?"
+- "Find skills for protein structure prediction"
+- "Search for drug discovery tools"
+
+You should see Claude invoke the `search_skills` tool in its chain of thought.
+
+### Option 2: MCP Inspector (Debugging)
+
+Interactive web-based testing:
+
+```bash
+npx @modelcontextprotocol/inspector uv --directory /path/to/claude-skills-mcp run claude-skills-mcp
+```
+
+This opens a web UI where you can:
+- See available tools
+- Call `search_skills` with custom queries
+- View request/response JSON
+- Debug protocol issues
+
+## Test Details by Module
+
+### Configuration Tests (`test_config.py`)
+
+Tests configuration loading, validation, and defaults:
+- Loading from file vs defaults
+- Invalid/missing config files
+- Example config generation
+- Different `top_k` values
+
+### Skill Loader Tests (`test_skill_loader.py`)
+
+Tests skill parsing and loading:
+- YAML frontmatter parsing
+- Missing or malformed SKILL.md files
+- Local directory scanning
+- Home directory expansion (~)
+- Error handling for inaccessible paths
+
+### Search Engine Tests (`test_search_engine.py`)
+
+Tests vector search functionality:
+- Embedding generation and indexing
+- Cosine similarity computation
+- Top-K result limiting
+- Relevance score ordering
+- Empty index handling
+- Query-skill matching accuracy
+
+### GitHub URL Tests (`test_github_url_parsing.py`)
+
+Tests URL parsing with branches and subpaths:
+- Browser-style URLs: `github.com/owner/repo/tree/branch/subpath`
+- Base repository URLs
+- Deep nested subpaths
+- Subpath parameter override logic
+
+### Integration Tests (`test_integration.py`)
+
+End-to-end workflow tests:
+- Local demo (temporary skills)
+- Repository demo (K-Dense AI skills)
+- Default configuration workflow
+- Mixed sources (GitHub + local)
+
+## Coverage Analysis
+
+### Current Coverage: 56%
+
+Coverage is **enabled by default**. Every test run shows statistics.
+
+**Module breakdown:**
+- `__init__.py`: 100% ✅
+- `search_engine.py`: 100% ✅
+- `config.py`: 86% ✅
+- `skill_loader.py`: 68% ⚠️ (GitHub loading in integration tests)
+- `server.py`: 0% (MCP runtime, tested end-to-end)
+- `__main__.py`: 0% (CLI entry, tested end-to-end)
+
+### Generate Coverage Reports
+
+**Terminal report** (default):
+```bash
+uv run pytest tests/
+# Shows coverage automatically
+```
+
+**HTML report** (interactive):
 ```bash
 uv run pytest tests/ --cov-report=html
 open htmlcov/index.html
 ```
 
-Run tests without coverage (faster):
-
+**Disable coverage** (faster for development):
 ```bash
 uv run pytest tests/ --no-cov
 ```
 
-Current coverage targets:
-- Core modules (`config.py`, `search_engine.py`, `skill_loader.py`): >80%
-- Integration points tested via integration tests
-- CLI and server endpoints tested end-to-end
+### Coverage Tips
+
+Lines marked as missing are often:
+- Error handling paths (tested in integration)
+- GitHub API fallback logic (tested with live repos)
+- MCP server runtime (tested via client connections)
+
+Focus coverage improvements on core business logic in `config.py` and `skill_loader.py`.
 
 ## Continuous Integration
 
-When ready for CI/CD, consider:
+GitHub Actions runs automatically on all PRs to `main`:
 
-- GitHub Actions workflow
-- Automated testing on push
+**Workflow** (`.github/workflows/test.yml`):
+- Runs on: Pull requests and pushes to main
+- Python version: 3.12 (enforced)
+- Unit tests with coverage
+- Integration tests
 - Build verification
-- Package publishing to PyPI
 
-## Test Coverage Goals
+View CI results at: `https://github.com/K-Dense-AI/claude-skills-mcp/actions`
 
-- [ ] Unit tests for all modules
-- [ ] Integration tests with MCP client
-- [ ] Performance benchmarks
-- [ ] Error handling scenarios
-- [ ] Edge cases (malformed skills, network failures, etc.)
+## Writing New Tests
+
+### Adding a Unit Test
+
+```python
+# tests/test_mymodule.py
+import pytest
+from src.claude_skills_mcp.mymodule import my_function
+
+def test_my_function():
+    """Test my function with valid input."""
+    result = my_function("input")
+    assert result == "expected"
+
+@pytest.mark.parametrize("input,expected", [
+    ("a", "result_a"),
+    ("b", "result_b"),
+])
+def test_my_function_parametrized(input, expected):
+    """Test multiple cases."""
+    assert my_function(input) == expected
+```
+
+### Adding an Integration Test
+
+```python
+# tests/test_integration.py
+import pytest
+
+@pytest.mark.integration
+def test_my_integration():
+    """Integration test requiring external resources."""
+    # Your test code
+    pass
+```
+
+Mark with `@pytest.mark.integration` so it can be excluded with `-m "not integration"`.
 

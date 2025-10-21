@@ -222,7 +222,6 @@ The server can load skills from:
 Examples:
 - [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 70+ scientific skills (default)
 - [Anthropic Custom Skills](https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills)
-- [Jeffallan's Claude Skills](https://github.com/Jeffallan/claude-skills)
 
 ### Local Directories
 
@@ -305,9 +304,8 @@ All contributions are welcome! Please ensure tests pass before submitting.
 
 ## Documentation
 
-- [Usage Examples](docs/usage.md) - Detailed usage scenarios and configuration examples
-- [Testing Guide](docs/testing.md) - Comprehensive testing instructions
-- [Publishing Guide](docs/publishing.md) - How to publish to PyPI
+- [Usage Examples](docs/usage.md) - Advanced configuration, real-world use cases, and custom skill creation
+- [Testing Guide](docs/testing.md) - Complete testing instructions, CI/CD, and coverage analysis
 
 ## Learn More
 
@@ -322,9 +320,4 @@ This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENS
 
 **Required Notice:** Copyright K-Dense AI (https://k-dense.ai)
 
-For commercial use or licensing inquiries, please contact K-Dense AI at [contact@k-dense.ai](mailto:contact@k-dense.ai).
-
----
-
-**Status**: Ready for testing and distribution  
-**Version**: 0.1.0
+For commercial use or licensing inquiries, please contact K-Dense AI at [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai).

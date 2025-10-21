@@ -1,75 +1,68 @@
 # Usage Examples
 
-## Running the Server
+This guide provides detailed examples and use cases beyond the Quick Start in the main README.
 
-### Basic Usage (Default Configuration)
+## Advanced Configuration Examples
 
-```bash
-uvx claude-skills-mcp
-```
+## Real-World Use Cases
 
-This will:
-1. Load the K-Dense-AI Scientific Skills repository
-2. Index 69+ scientific skills
-3. Start the MCP server on stdio
+### Bioinformatics Research
 
-### With Custom Configuration
+**Scenario**: You're analyzing single-cell RNA sequencing data
 
-```bash
-# Generate example config
-uvx claude-skills-mcp --example-config > my-config.json
-
-# Edit my-config.json to add your skill sources
-
-# Run with custom config
-uvx claude-skills-mcp --config my-config.json
-```
-
-### With Verbose Logging
-
-```bash
-uvx claude-skills-mcp --verbose
-```
-
-## Using the MCP Tool
-
-Once the server is running and connected to Claude, you can use the `search_skills` tool:
-
-### Example 1: RNA Analysis
-
-**Task**: "I need to analyze RNA sequencing data and identify differentially expressed genes"
-
-**Expected Results**: Skills like:
-- `pydeseq2` - Differential expression analysis
-- `scanpy` - Single-cell RNA analysis
+**Skills that will be found**:
+- `scanpy` - Single-cell analysis framework
 - `anndata` - Annotated data matrices
+- `umap-learn` - Dimensionality reduction
+- `pytorch-lightning` - Deep learning models
 
-### Example 2: Drug Discovery
+**Example queries**:
+- "Analyze single-cell RNA sequencing data with clustering"
+- "Perform differential expression analysis between cell types"
+- "Visualize gene expression patterns in UMAP space"
 
-**Task**: "I want to screen chemical compounds for drug targets"
+### Drug Discovery Pipeline
 
-**Expected Results**: Skills like:
-- `rdkit` - Chemistry toolkit
-- `deepchem` - Deep learning for chemistry
-- `chembl-database` - Bioactive molecules database
-- `zinc-database` - Commercially available compounds
+**Scenario**: Screening compounds and predicting activity
 
-### Example 3: Protein Structure
+**Skills that will be found**:
+- `rdkit` - Molecular manipulation
+- `deepchem` - ML for chemistry
+- `chembl-database` - Bioactive compounds
+- `diffdock` - Protein-ligand docking
+- `medchem` - Drug-likeness filtering
 
-**Task**: "I need to predict and analyze protein structures"
+**Example queries**:
+- "Screen chemical libraries for drug-like properties"
+- "Predict protein-ligand binding affinity"
+- "Filter compounds by Lipinski's rule of five"
 
-**Expected Results**: Skills like:
-- `alphafold-database` - Protein structure predictions
-- `pdb-database` - Protein Data Bank access
-- `biopython` - Biological computation
+### Genomic Variant Analysis
 
-### Example 4: Statistical Analysis
+**Scenario**: Clinical genomics and variant interpretation
 
-**Task**: "Perform Bayesian statistical modeling on experimental data"
+**Skills that will be found**:
+- `clinvar-database` - Clinical variant database
+- `ensembl-database` - Genome annotations
+- `biopython` - Sequence manipulation
+- `pysam` - SAM/BAM file handling
 
-**Expected Results**: Skills like:
-- `pymc-bayesian-modeling` - Probabilistic programming
-- `statistical-analysis` - Statistical thinking skill
+**Example queries**:
+- "Interpret genomic variants for clinical significance"
+- "Access variant pathogenicity predictions"
+- "Analyze VCF files from whole genome sequencing"
+
+### Materials Science
+
+**Scenario**: Computational materials research
+
+**Skills that will be found**:
+- `pymatgen` - Materials analysis
+- `astropy` - Scientific computing
+
+**Example queries**:
+- "Analyze crystal structures and phase diagrams"
+- "Calculate electronic structure properties"
 
 ## Connecting to Claude
 
@@ -103,130 +96,275 @@ Add to your MCP settings in Claude Code:
 }
 ```
 
-## Configuration Examples
+## Advanced Configuration Patterns
 
-### Scientific Research Focus
+### Using Browser URLs with Subpaths
 
-```json
-{
-  "skill_sources": [
-    {
-      "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
-    }
-  ],
-  "embedding_model": "all-MiniLM-L6-v2",
-  "default_top_k": 5
-}
-```
-
-### Mixed Sources
+You can paste GitHub URLs directly from your browser:
 
 ```json
 {
   "skill_sources": [
     {
       "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
-    },
-    {
-      "type": "github",
-      "url": "https://github.com/anthropics/claude-cookbooks",
-      "subpath": "skills/custom_skills"
-    },
-    {
-      "type": "local",
-      "path": "~/my-custom-skills"
-    }
-  ],
-  "embedding_model": "all-MiniLM-L6-v2",
-  "default_top_k": 3
-}
-```
-
-### Local Skills Only
-
-```json
-{
-  "skill_sources": [
-    {
-      "type": "local",
-      "path": "~/.claude/skills"
-    },
-    {
-      "type": "local",
-      "path": "/Users/me/work/team-skills"
-    }
-  ],
-  "embedding_model": "all-MiniLM-L6-v2",
-  "default_top_k": 3
-}
-```
-
-## Creating Your Own Skills
-
-Create a directory with a `SKILL.md` file:
-
-```markdown
----
-name: My Custom Skill
-description: Brief description of what this skill does and when to use it
----
-
-# My Custom Skill
-
-## Overview
-
-Detailed information about the skill...
-
-## Quick Start
-
-```python
-# Example code
-import my_library
-```
-
-## Use Cases
-
-- Use case 1
-- Use case 2
-
-## Best Practices
-
-...
-```
-
-Then add the directory to your config:
-
-```json
-{
-  "skill_sources": [
-    {
-      "type": "local",
-      "path": "/path/to/my-skills"
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-thinking"
     }
   ]
 }
 ```
 
+This automatically extracts:
+- Repository: `K-Dense-AI/claude-scientific-skills`
+- Branch: `main`
+- Subpath: `scientific-thinking`
+
+### Loading Only Specific Skill Categories
+
+Load only scientific thinking skills (document processing, peer review, etc.):
+
+```json
+{
+  "skill_sources": [
+    {
+      "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-thinking"
+    }
+  ],
+  "default_top_k": 5
+}
+```
+
+Load only database skills:
+
+```json
+{
+  "skill_sources": [
+    {
+      "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-databases"
+    }
+  ]
+}
+```
+
+### Team-Specific Configuration
+
+Combine company GitHub repo with local team skills:
+
+```json
+{
+  "skill_sources": [
+    {
+      "type": "github",
+      "url": "https://github.com/your-org/company-skills"
+    },
+    {
+      "type": "local",
+      "path": "~/team-skills"
+    }
+  ],
+  "default_top_k": 5
+}
+```
+
+### Multiple Repositories
+
+Load skills from multiple sources:
+
+```json
+{
+  "skill_sources": [
+    {
+      "type": "github",
+      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
+    },
+    {
+      "type": "github",
+      "url": "https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills"
+    },
+    {
+      "type": "github",
+      "url": "https://github.com/Jeffallan/claude-skills"
+    }
+  ]
+}
+```
+
+## Creating Custom Skills
+
+### Skill Structure
+
+Each skill is a directory containing a `SKILL.md` file:
+
+```
+my-custom-skill/
+├── SKILL.md              # Required: skill definition
+├── examples.py           # Optional: code examples
+├── reference.md          # Optional: detailed reference
+└── data/                 # Optional: supporting files
+```
+
+### SKILL.md Format
+
+```markdown
+---
+name: My Custom Skill
+description: Brief, searchable description (used for vector matching)
+allowed-tools: Read, Write, Execute  # Optional: tool restrictions
+---
+
+# My Custom Skill
+
+## When to Use This Skill
+
+Describe when Claude should use this skill.
+
+## Quick Start
+
+```python
+# Minimal working example
+import my_library
+result = my_library.do_something()
+```
+
+## Detailed Usage
+
+[More comprehensive documentation...]
+
+## Common Patterns
+
+- Pattern 1
+- Pattern 2
+
 ## Troubleshooting
 
-### No skills loaded
+Common issues and solutions.
+```
 
-- Check your internet connection if using GitHub sources
-- Verify GitHub repository URLs are correct
-- Check file paths for local sources
-- Use `--verbose` flag to see detailed logs
+### Best Practices for Skill Descriptions
 
-### Low relevance scores
+The `description` field is crucial for search quality:
 
-- Try different task descriptions
-- Increase `top_k` to see more results
-- Ensure skill descriptions are clear and comprehensive
+✅ **Good descriptions** (will be found by vector search):
+- "Analyze RNA sequencing data and identify differentially expressed genes"
+- "Screen chemical compounds for drug-like properties and bioactivity"
+- "Predict protein structures using AlphaFold and analyze conformations"
 
-### Server won't start
+❌ **Poor descriptions** (won't match well):
+- "RNA analysis" (too vague)
+- "Use this for compounds" (not specific)
+- "AlphaFold" (just a name, no context)
 
-- Ensure Python 3.12 is available
-- Check that all dependencies are installed: `uv sync`
-- Review error logs with `--verbose` flag
+**Tips:**
+- Include action verbs (analyze, predict, screen, visualize)
+- Mention the scientific domain
+- Describe the use case, not just the tool
+- Think about how users will ask for help
+
+### Local Development Workflow
+
+1. Create your skill directory:
+```bash
+mkdir -p ~/my-skills/custom-analysis
+cd ~/my-skills/custom-analysis
+```
+
+2. Create SKILL.md with proper frontmatter
+
+3. Test loading:
+```bash
+cat > test-config.json << 'EOF'
+{
+  "skill_sources": [{"type": "local", "path": "~/my-skills"}]
+}
+EOF
+
+uv run claude-skills-mcp --config test-config.json --verbose
+```
+
+4. Test search relevance:
+```bash
+# Use the test client or integration tests
+pytest tests/test_integration.py::test_local_demo -v -s
+```
+
+## Performance Tuning
+
+### Optimizing Search Results
+
+**Increase results for better coverage:**
+```json
+{
+  "default_top_k": 10
+}
+```
+
+**Use a more powerful embedding model:**
+```json
+{
+  "embedding_model": "all-mpnet-base-v2"
+}
+```
+
+Note: Larger models improve accuracy but increase memory usage and startup time.
+
+### Reducing Memory Usage
+
+**Use smaller embedding model:**
+```json
+{
+  "embedding_model": "all-MiniLM-L6-v2"  // ~90MB, good quality
+}
+```
+
+vs.
+
+```json
+{
+  "embedding_model": "all-mpnet-base-v2"  // ~420MB, higher quality
+}
+```
+
+### Faster Startup
+
+- Load fewer skills (use subpath filtering)
+- Use smaller embedding models
+- Keep skills on local filesystem instead of GitHub
+
+## Troubleshooting
+
+### Skills Not Matching Expected Results
+
+**Problem**: Search returns irrelevant skills
+
+**Solutions**:
+- Improve skill descriptions to be more specific
+- Use domain-specific keywords in your query
+- Increase `top_k` to see more options
+- Check if expected skills are actually loaded (use `--verbose`)
+
+### GitHub Rate Limit
+
+**Problem**: "API rate limit exceeded"
+
+**Solutions**:
+- Wait an hour (60 requests/hour for unauthenticated)
+- Cache skills locally after first load
+- Use local directories instead of GitHub for development
+
+**Note**: Only the tree API call counts against the limit, not the raw content downloads.
+
+### Slow Startup
+
+**Problem**: Server takes too long to start
+
+**Causes**:
+- First run downloads embedding model (~100MB)
+- Loading many skills from GitHub
+- Large embedding model
+
+**Solutions**:
+- Model is cached after first download
+- Use subpath filtering to load fewer skills
+- Use local directories for faster access
 
