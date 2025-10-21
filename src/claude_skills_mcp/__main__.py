@@ -4,11 +4,12 @@ import argparse
 import asyncio
 import logging
 import sys
+import threading
 
 from .config import load_config, get_example_config
-from .skill_loader import load_all_skills
+from .skill_loader import load_skills_in_batches
 from .search_engine import SkillSearchEngine
-from .server import SkillsMCPServer
+from .server import SkillsMCPServer, LoadingState
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -93,27 +94,64 @@ async def main_async() -> None:
         # Load configuration
         config = load_config(args.config)
 
-        # Load skills from all sources
-        logger.info("Loading skills from configured sources...")
-        skills = load_all_skills(config["skill_sources"], config)
-
-        if not skills:
-            logger.error("No skills were loaded! Please check your configuration.")
-            sys.exit(1)
-
-        logger.info(f"Successfully loaded {len(skills)} skills")
-
-        # Initialize search engine
+        # Initialize search engine (empty, will be populated by background loading)
+        logger.info("Initializing search engine...")
         search_engine = SkillSearchEngine(config["embedding_model"])
-        search_engine.index_skills(skills)
 
-        # Create and run MCP server
+        # Initialize loading state
+        loading_state = LoadingState()
+
+        # Create MCP server (starts immediately with empty index)
         mcp_server = SkillsMCPServer(
             search_engine=search_engine,
+            loading_state=loading_state,
             default_top_k=config["default_top_k"],
             max_content_chars=config.get("max_skill_content_chars"),
         )
 
+        # Define batch callback for incremental loading
+        def on_batch_loaded(batch_skills: list, total_loaded: int) -> None:
+            """Callback invoked after each batch of skills is loaded.
+
+            Parameters
+            ----------
+            batch_skills : list
+                Skills in this batch.
+            total_loaded : int
+                Total number of skills loaded so far.
+            """
+            logger.info(
+                f"Batch loaded: {len(batch_skills)} skills (total: {total_loaded})"
+            )
+            # Add skills to search engine incrementally
+            search_engine.add_skills(batch_skills)
+            # Update loading state
+            loading_state.update_progress(total_loaded)
+
+        # Start background thread to load skills
+        def background_loader() -> None:
+            """Background thread function to load skills in batches."""
+            try:
+                logger.info("Starting background skill loading...")
+                load_skills_in_batches(
+                    skill_sources=config["skill_sources"],
+                    config=config,
+                    batch_callback=on_batch_loaded,
+                    batch_size=config.get("batch_size", 10),
+                )
+                loading_state.mark_complete()
+                logger.info("Background skill loading complete")
+            except Exception as e:
+                logger.error(f"Error in background loading: {e}", exc_info=True)
+                loading_state.add_error(str(e))
+                loading_state.mark_complete()
+
+        # Start the background loading thread
+        loader_thread = threading.Thread(target=background_loader, daemon=True)
+        loader_thread.start()
+        logger.info("Background loading thread started, server is ready")
+
+        # Run the MCP server (non-blocking, skills load in background)
         await mcp_server.run()
 
     except KeyboardInterrupt:
