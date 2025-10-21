@@ -14,6 +14,12 @@ A Model Context Protocol (MCP) server that provides intelligent search capabilit
 
 This MCP server enables any MCP-compatible AI assistant to intelligently search and retrieve skills from our curated [Claude Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository and other skill sources like the [Official Claude Skills](https://github.com/anthropics/skills). If you want substantially more advanced capabilities, compute infrastructure, and enterprise-ready AI scientist offerings, check out [K-Dense AI's commercial platform](https://k-dense.ai/).
 
+## Demo
+
+![Claude Skills MCP in Action](docs/demo.gif)
+
+*Semantic search and progressive loading of Claude Agent Skills in Cursor*
+
 ## Features
 
 - 🔍 **Semantic Search**: Vector embeddings for intelligent skill discovery
