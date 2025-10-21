@@ -95,7 +95,7 @@ async def main_async() -> None:
 
         # Load skills from all sources
         logger.info("Loading skills from configured sources...")
-        skills = load_all_skills(config["skill_sources"])
+        skills = load_all_skills(config["skill_sources"], config)
 
         if not skills:
             logger.error("No skills were loaded! Please check your configuration.")

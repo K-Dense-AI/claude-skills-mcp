@@ -17,6 +17,10 @@ DEFAULT_CONFIG = {
     "embedding_model": "all-MiniLM-L6-v2",
     "default_top_k": 3,
     "max_skill_content_chars": None,  # None for unlimited, or an integer to limit
+    "load_skill_documents": True,  # Load additional files from skill directories
+    "max_image_size_bytes": 5242880,  # 5MB limit for image files
+    "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
+    "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"],
 }
 
 
@@ -83,5 +87,9 @@ def get_example_config() -> str:
         "embedding_model": "all-MiniLM-L6-v2",
         "default_top_k": 3,
         "max_skill_content_chars": 5000,
+        "load_skill_documents": True,
+        "max_image_size_bytes": 5242880,
+        "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
+        "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"],
     }
     return json.dumps(example, indent=2)

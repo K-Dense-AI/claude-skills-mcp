@@ -64,7 +64,9 @@ This guide provides detailed examples and use cases beyond the Quick Start in th
 - "Analyze crystal structures and phase diagrams"
 - "Calculate electronic structure properties"
 
-## Connecting to Claude
+## Connecting to AI Assistants
+
+This MCP server works with any MCP-compatible application. Here are configuration examples for popular platforms:
 
 ### Claude Desktop
 
@@ -95,6 +97,10 @@ Add to your MCP settings in Claude Code:
   }
 }
 ```
+
+### Cursor & Other MCP-Compatible Editors
+
+Configuration is similar for any MCP-compatible IDE. Refer to your editor's MCP integration documentation for specific configuration file locations.
 
 ## Advanced Configuration Patterns
 
@@ -217,7 +223,7 @@ allowed-tools: Read, Write, Execute  # Optional: tool restrictions
 
 ## When to Use This Skill
 
-Describe when Claude should use this skill.
+Describe when an AI assistant should use this skill and what problems it solves.
 
 ## Quick Start
 

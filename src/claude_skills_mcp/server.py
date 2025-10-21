@@ -1,5 +1,6 @@
 """MCP server implementation for Claude Skills search."""
 
+import fnmatch
 import logging
 from typing import Any
 
@@ -89,70 +90,271 @@ class SkillsMCPServer:
                                 "minimum": 1,
                                 "maximum": 20,
                             },
+                            "list_documents": {
+                                "type": "boolean",
+                                "description": "Include a list of available documents (scripts, references, assets) for each skill (default: False)",
+                                "default": False,
+                            },
                         },
                         "required": ["task_description"],
                     },
-                )
+                ),
+                Tool(
+                    name="read_skill_document",
+                    title="Read Skill Document",
+                    description=(
+                        "Retrieve specific documents (scripts, references, assets) from a skill. "
+                        "Use this after searching for skills to access additional resources like Python scripts, "
+                        "example data files, reference materials, or images. Supports pattern matching to retrieve "
+                        "multiple files at once (e.g., 'scripts/*.py' for all Python scripts)."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "skill_name": {
+                                "type": "string",
+                                "description": "Name of the skill (as returned by search_skills)",
+                            },
+                            "document_path": {
+                                "type": "string",
+                                "description": (
+                                    "Path or pattern to match documents. Examples: 'scripts/example.py', "
+                                    "'scripts/*.py', 'references/*', 'assets/diagram.png'. "
+                                    "If not provided, returns a list of all available documents."
+                                ),
+                            },
+                            "include_base64": {
+                                "type": "boolean",
+                                "description": (
+                                    "For images: if True, return base64-encoded content; if False, return only URL. "
+                                    "Default: False (URL only for efficiency)"
+                                ),
+                                "default": False,
+                            },
+                        },
+                        "required": ["skill_name"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Handle tool calls."""
-            if name != "search_skills":
+            if name == "search_skills":
+                return await self._handle_search_skills(arguments)
+            elif name == "read_skill_document":
+                return await self._handle_read_skill_document(arguments)
+            else:
                 raise ValueError(f"Unknown tool: {name}")
+    
+    async def _handle_search_skills(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Handle search_skills tool calls.
+        
+        Parameters
+        ----------
+        arguments : dict[str, Any]
+            Tool arguments.
+        
+        Returns
+        -------
+        list[TextContent]
+            Formatted search results.
+        """
+        task_description = arguments.get("task_description")
+        if not task_description:
+            raise ValueError("task_description is required")
 
-            task_description = arguments.get("task_description")
-            if not task_description:
-                raise ValueError("task_description is required")
+        top_k = arguments.get("top_k", self.default_top_k)
+        list_documents = arguments.get("list_documents", False)
 
-            top_k = arguments.get("top_k", self.default_top_k)
+        # Perform search
+        results = self.search_engine.search(task_description, top_k)
 
-            # Perform search
-            results = self.search_engine.search(task_description, top_k)
+        # Format results as text
+        if not results:
+            return [
+                TextContent(
+                    type="text",
+                    text="No relevant skills found for the given task description.",
+                )
+            ]
 
-            # Format results as text
-            if not results:
+        # Build formatted response
+        response_parts = [
+            f"Found {len(results)} relevant skill(s) for: '{task_description}'\n"
+        ]
+
+        for i, result in enumerate(results, 1):
+            response_parts.append(f"\n{'=' * 80}")
+            response_parts.append(f"\nSkill {i}: {result['name']}")
+            response_parts.append(
+                f"\nRelevance Score: {result['relevance_score']:.4f}"
+            )
+            response_parts.append(f"\nSource: {result['source']}")
+            response_parts.append(f"\nDescription: {result['description']}")
+            
+            # Include document count if available
+            documents = result.get("documents", {})
+            if documents:
+                response_parts.append(f"\nAdditional Documents: {len(documents)} file(s)")
+                
+                # List documents if requested
+                if list_documents:
+                    response_parts.append("\nAvailable Documents:")
+                    for doc_path in sorted(documents.keys()):
+                        doc_info = documents[doc_path]
+                        doc_type = doc_info.get("type", "unknown")
+                        doc_size = doc_info.get("size", 0)
+                        size_kb = doc_size / 1024
+                        response_parts.append(f"  - {doc_path} ({doc_type}, {size_kb:.1f} KB)")
+            
+            response_parts.append(f"\n{'-' * 80}")
+            response_parts.append("\nFull Content:\n")
+
+            # Apply character limit truncation if configured
+            content = result["content"]
+            if (
+                self.max_content_chars is not None
+                and len(content) > self.max_content_chars
+            ):
+                truncated_content = content[: self.max_content_chars] + "..."
+                response_parts.append(truncated_content)
+                response_parts.append(
+                    f"\n\n[Content truncated at {self.max_content_chars} characters. "
+                    f"View full skill at: {result['source']}]"
+                )
+            else:
+                response_parts.append(content)
+
+            response_parts.append(f"\n{'=' * 80}\n")
+
+        return [TextContent(type="text", text="\n".join(response_parts))]
+    
+    async def _handle_read_skill_document(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Handle read_skill_document tool calls.
+        
+        Parameters
+        ----------
+        arguments : dict[str, Any]
+            Tool arguments.
+        
+        Returns
+        -------
+        list[TextContent]
+            Document content or list of documents.
+        """
+        skill_name = arguments.get("skill_name")
+        if not skill_name:
+            raise ValueError("skill_name is required")
+        
+        document_path = arguments.get("document_path")
+        include_base64 = arguments.get("include_base64", False)
+        
+        # Find the skill by name
+        skill = None
+        for s in self.search_engine.skills:
+            if s.name == skill_name:
+                skill = s
+                break
+        
+        if not skill:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Skill '{skill_name}' not found. Please use search_skills to find valid skill names.",
+                )
+            ]
+        
+        # If no document_path provided, list all available documents
+        if not document_path:
+            if not skill.documents:
                 return [
                     TextContent(
                         type="text",
-                        text="No relevant skills found for the given task description.",
+                        text=f"Skill '{skill_name}' has no additional documents.",
                     )
                 ]
-
-            # Build formatted response
-            response_parts = [
-                f"Found {len(results)} relevant skill(s) for: '{task_description}'\n"
-            ]
-
-            for i, result in enumerate(results, 1):
-                response_parts.append(f"\n{'=' * 80}")
-                response_parts.append(f"\nSkill {i}: {result['name']}")
-                response_parts.append(
-                    f"\nRelevance Score: {result['relevance_score']:.4f}"
-                )
-                response_parts.append(f"\nSource: {result['source']}")
-                response_parts.append(f"\nDescription: {result['description']}")
-                response_parts.append(f"\n{'-' * 80}")
-                response_parts.append("\nFull Content:\n")
-
-                # Apply character limit truncation if configured
-                content = result["content"]
-                if (
-                    self.max_content_chars is not None
-                    and len(content) > self.max_content_chars
-                ):
-                    truncated_content = content[: self.max_content_chars] + "..."
-                    response_parts.append(truncated_content)
-                    response_parts.append(
-                        f"\n\n[Content truncated at {self.max_content_chars} characters. "
-                        f"View full skill at: {result['source']}]"
-                    )
-                else:
-                    response_parts.append(content)
-
-                response_parts.append(f"\n{'=' * 80}\n")
-
+            
+            response_parts = [f"Available documents for skill '{skill_name}':\n"]
+            for doc_path, doc_info in sorted(skill.documents.items()):
+                doc_type = doc_info.get("type", "unknown")
+                doc_size = doc_info.get("size", 0)
+                size_kb = doc_size / 1024
+                response_parts.append(f"  - {doc_path} ({doc_type}, {size_kb:.1f} KB)")
+            
             return [TextContent(type="text", text="\n".join(response_parts))]
+        
+        # Match documents by pattern
+        matching_docs = {}
+        for doc_path, doc_info in skill.documents.items():
+            if fnmatch.fnmatch(doc_path, document_path) or doc_path == document_path:
+                matching_docs[doc_path] = doc_info
+        
+        if not matching_docs:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"No documents matching '{document_path}' found in skill '{skill_name}'.",
+                )
+            ]
+        
+        # Format response based on number of matches
+        response_parts = []
+        
+        if len(matching_docs) == 1:
+            # Single document - return its content
+            doc_path, doc_info = list(matching_docs.items())[0]
+            doc_type = doc_info.get("type")
+            
+            if doc_type == "text":
+                response_parts.append(f"Document: {doc_path}\n")
+                response_parts.append("=" * 80)
+                response_parts.append(f"\n{doc_info.get('content', '')}")
+            
+            elif doc_type == "image":
+                response_parts.append(f"Image: {doc_path}\n")
+                if doc_info.get("size_exceeded"):
+                    response_parts.append(f"Size: {doc_info.get('size', 0) / 1024:.1f} KB (exceeds limit)")
+                    response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
+                elif include_base64:
+                    response_parts.append(f"Base64 Content:\n{doc_info.get('content', '')}")
+                    if "url" in doc_info:
+                        response_parts.append(f"\n\nAlternatively, access via URL: {doc_info['url']}")
+                else:
+                    response_parts.append(f"URL: {doc_info.get('url', 'N/A')}")
+                    if "content" in doc_info:
+                        response_parts.append("\n(Set include_base64=true to get base64-encoded content)")
+        
+        else:
+            # Multiple documents - list them with content
+            response_parts.append(f"Found {len(matching_docs)} documents matching '{document_path}':\n")
+            
+            for doc_path, doc_info in sorted(matching_docs.items()):
+                doc_type = doc_info.get("type")
+                response_parts.append(f"\n{'=' * 80}")
+                response_parts.append(f"\nDocument: {doc_path}")
+                response_parts.append(f"\nType: {doc_type}")
+                response_parts.append(f"\nSize: {doc_info.get('size', 0) / 1024:.1f} KB")
+                
+                if doc_type == "text":
+                    response_parts.append("\nContent:")
+                    response_parts.append("-" * 80)
+                    response_parts.append(f"\n{doc_info.get('content', '')}")
+                
+                elif doc_type == "image":
+                    if doc_info.get("size_exceeded"):
+                        response_parts.append("\n(Size exceeds limit)")
+                        response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
+                    elif include_base64:
+                        response_parts.append(f"\nBase64 Content: {doc_info.get('content', '')}")
+                        if "url" in doc_info:
+                            response_parts.append(f"\nURL: {doc_info['url']}")
+                    else:
+                        response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
+                
+                response_parts.append(f"\n{'=' * 80}")
+        
+        return [TextContent(type="text", text="\n".join(response_parts))]
 
     async def run(self) -> None:
         """Run the MCP server using stdio transport."""

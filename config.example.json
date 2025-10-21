@@ -22,6 +22,12 @@
   "embedding_model": "all-MiniLM-L6-v2",
   "default_top_k": 3,
   "max_skill_content_chars": 20000,
-  "comment_max_chars": "Set to null for unlimited skill content, or an integer to truncate long skills (helps manage token usage)"
+  "comment_max_chars": "Set to null for unlimited skill content, or an integer to truncate long skills (helps manage token usage)",
+  "load_skill_documents": true,
+  "comment_load_docs": "Load additional files (scripts, references, assets) from skill directories",
+  "max_image_size_bytes": 5242880,
+  "comment_max_image": "Maximum image file size (5MB). Larger images store URL only",
+  "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
+  "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb"]
 }
 
