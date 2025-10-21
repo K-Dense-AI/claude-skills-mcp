@@ -3,14 +3,37 @@ name = "claude-skills-mcp"
 version = "0.1.0"
 description = "MCP server for searching and retrieving Claude Agent Skills using vector search"
 readme = "README.md"
+license = {text = "PolyForm Noncommercial License 1.0.0"}
+license-files = {paths = ["LICENSE.md"]}
+authors = [
+    {name = "K-Dense AI", email = "orion.li@k-dense.ai"}
+]
+maintainers = [
+    {name = "K-Dense AI", email = "orion.li@k-dense.ai"}
+]
+keywords = ["mcp", "claude", "skills", "agent", "ai", "vector-search", "scientific"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.12",
+]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "mcp>=1.0.0",
     "sentence-transformers>=2.2.0",
     "numpy>=1.24.0",
     "httpx>=0.24.0",
-    "ruff>=0.14.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/K-Dense-AI/claude-skills-mcp"
+Documentation = "https://github.com/K-Dense-AI/claude-skills-mcp/blob/main/README.md"
+Repository = "https://github.com/K-Dense-AI/claude-skills-mcp"
+"Bug Tracker" = "https://github.com/K-Dense-AI/claude-skills-mcp/issues"
+"K-Dense AI" = "https://k-dense.ai"
+"Claude Scientific Skills" = "https://github.com/K-Dense-AI/claude-scientific-skills"
 
 [project.optional-dependencies]
 test = [

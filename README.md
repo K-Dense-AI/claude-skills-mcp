@@ -2,6 +2,10 @@
 
 A Model Context Protocol (MCP) server that provides intelligent search capabilities for discovering relevant Claude Agent Skills using vector embeddings and semantic similarity.
 
+**An open-source project by [K-Dense AI](https://k-dense.ai)** - creators of autonomous AI scientists for scientific research.
+
+This MCP server enables Claude to intelligently search and retrieve skills from our curated [Claude Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository and other skill sources. If you want substantially more advanced capabilities, compute infrastructure, and enterprise-ready AI scientist offerings, check out [K-Dense AI's commercial platform](https://k-dense.ai/).
+
 ## Features
 
 - 🔍 **Semantic Search**: Find the most relevant Claude Agent Skills using vector embeddings
@@ -21,7 +25,7 @@ Run the server with default configuration (no installation required):
 uvx claude-skills-mcp
 ```
 
-This automatically loads skills from the [K-Dense-AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository.
+This automatically loads skills from the [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository - a curated collection of 70+ scientific skills for bioinformatics, cheminformatics, and scientific analysis.
 
 ### With Custom Configuration
 
@@ -216,7 +220,7 @@ The server can load skills from:
 - Claude Code plugin repositories (with .claude-plugin/marketplace.json)
 
 Examples:
-- [K-Dense-AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 69 scientific skills
+- [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 70+ scientific skills (default)
 - [Anthropic Custom Skills](https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills)
 - [Jeffallan's Claude Skills](https://github.com/Jeffallan/claude-skills)
 
@@ -303,6 +307,7 @@ All contributions are welcome! Please ensure tests pass before submitting.
 
 - [Usage Examples](docs/usage.md) - Detailed usage scenarios and configuration examples
 - [Testing Guide](docs/testing.md) - Comprehensive testing instructions
+- [Publishing Guide](docs/publishing.md) - How to publish to PyPI
 
 ## Learn More
 
@@ -313,7 +318,11 @@ All contributions are welcome! Please ensure tests pass before submitting.
 
 ## License
 
-[To be added]
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md).
+
+**Required Notice:** Copyright K-Dense AI (https://k-dense.ai)
+
+For commercial use or licensing inquiries, please contact K-Dense AI at [contact@k-dense.ai](mailto:contact@k-dense.ai).
 
 ---
 
