@@ -1,6 +1,6 @@
 [project]
 name = "claude-skills-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for searching and retrieving Claude Agent Skills using vector search"
 readme = "README.md"
 license = {text = "PolyForm Noncommercial License 1.0.0"}
