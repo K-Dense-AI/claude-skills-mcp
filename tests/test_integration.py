@@ -801,7 +801,7 @@ def test_anthropic_specific_skills():
 @pytest.mark.integration
 def test_list_skills_tool():
     """Test that list_skills returns all loaded skills."""
-    from src.claude_skills_mcp.server import SkillsMCPServer
+    from src.claude_skills_mcp.server import SkillsMCPServer, LoadingState
     from src.claude_skills_mcp.skill_loader import load_from_github
     import asyncio
 
@@ -814,7 +814,9 @@ def test_list_skills_tool():
     # Create engine and server
     engine = SkillSearchEngine("all-MiniLM-L6-v2")
     engine.index_skills(skills)
-    server = SkillsMCPServer(engine)
+    loading_state = LoadingState()
+    loading_state.mark_complete()  # Mark as complete since skills are already loaded
+    server = SkillsMCPServer(engine, loading_state)
 
     # Call list_skills
     result = asyncio.run(server._handle_list_skills({}))

@@ -1019,3 +1019,72 @@ def load_all_skills(
 
     logger.info(f"Total skills loaded: {len(all_skills)}")
     return all_skills
+
+
+def load_skills_in_batches(
+    skill_sources: list[dict[str, Any]],
+    config: dict[str, Any] | None,
+    batch_callback: Callable[[list[Skill], int], None],
+    batch_size: int = 10,
+) -> None:
+    """Load skills from all sources in batches with callbacks.
+
+    This function loads skills incrementally and calls the callback
+    after each batch, allowing for progressive indexing.
+
+    Parameters
+    ----------
+    skill_sources : list[dict[str, Any]]
+        List of skill source configurations.
+    config : dict[str, Any] | None
+        Configuration dictionary with document loading settings.
+    batch_callback : Callable[[list[Skill], int], None]
+        Callback function called with (batch_skills, total_loaded) after each batch.
+    batch_size : int, optional
+        Number of skills per batch, by default 10.
+    """
+    current_batch: list[Skill] = []
+    total_loaded = 0
+
+    def process_batch() -> None:
+        """Process and clear the current batch."""
+        nonlocal total_loaded
+        if current_batch:
+            total_loaded += len(current_batch)
+            batch_callback(current_batch.copy(), total_loaded)
+            current_batch.clear()
+
+    for source_config in skill_sources:
+        source_type = source_config.get("type")
+
+        try:
+            if source_type == "github":
+                url = source_config.get("url")
+                subpath = source_config.get("subpath", "")
+                if url:
+                    skills = load_from_github(url, subpath, config)
+                    for skill in skills:
+                        current_batch.append(skill)
+                        if len(current_batch) >= batch_size:
+                            process_batch()
+
+            elif source_type == "local":
+                path = source_config.get("path")
+                if path:
+                    skills = load_from_local(path, config)
+                    for skill in skills:
+                        current_batch.append(skill)
+                        if len(current_batch) >= batch_size:
+                            process_batch()
+
+            else:
+                logger.warning(f"Unknown source type: {source_type}")
+
+        except Exception as e:
+            logger.error(f"Error loading from source {source_config}: {e}")
+            continue
+
+    # Process any remaining skills in the final batch
+    process_batch()
+
+    logger.info(f"Finished loading {total_loaded} skills in batches")

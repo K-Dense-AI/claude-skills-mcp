@@ -143,7 +143,7 @@ def test_startup_time_improvement():
 @pytest.mark.integration
 def test_lazy_fetching_with_server():
     """Test lazy fetching through the MCP server interface."""
-    from src.claude_skills_mcp.server import SkillsMCPServer
+    from src.claude_skills_mcp.server import SkillsMCPServer, LoadingState
     import asyncio
 
     # Load skills (fast - no document content)
@@ -157,7 +157,9 @@ def test_lazy_fetching_with_server():
     # Create server
     engine = SkillSearchEngine("all-MiniLM-L6-v2")
     engine.index_skills(skills)
-    server = SkillsMCPServer(engine)
+    loading_state = LoadingState()
+    loading_state.mark_complete()  # Mark as complete since skills are already loaded
+    server = SkillsMCPServer(engine, loading_state)
 
     # Find EDA skill
     eda_skill = skills[0]

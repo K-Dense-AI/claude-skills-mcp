@@ -1,6 +1,7 @@
 """Vector search engine for finding relevant skills."""
 
 import logging
+import threading
 from typing import Any
 
 import numpy as np
@@ -22,6 +23,8 @@ class SkillSearchEngine:
         List of indexed skills.
     embeddings : np.ndarray | None
         Embeddings matrix for all skill descriptions.
+    _lock : threading.Lock
+        Lock for thread-safe access to skills and embeddings.
     """
 
     def __init__(self, model_name: str):
@@ -36,6 +39,7 @@ class SkillSearchEngine:
         self.model = SentenceTransformer(model_name)
         self.skills: list[Skill] = []
         self.embeddings: np.ndarray | None = None
+        self._lock = threading.Lock()
         logger.info(f"Embedding model loaded: {model_name}")
 
     def index_skills(self, skills: list[Skill]) -> None:
@@ -46,20 +50,53 @@ class SkillSearchEngine:
         skills : list[Skill]
             Skills to index.
         """
+        with self._lock:
+            if not skills:
+                logger.warning("No skills to index")
+                self.skills = []
+                self.embeddings = None
+                return
+
+            logger.info(f"Indexing {len(skills)} skills...")
+            self.skills = skills
+
+            # Generate embeddings from skill descriptions
+            descriptions = [skill.description for skill in skills]
+            self.embeddings = self.model.encode(descriptions, convert_to_numpy=True)
+
+            logger.info(f"Successfully indexed {len(skills)} skills")
+
+    def add_skills(self, skills: list[Skill]) -> None:
+        """Add skills incrementally and update embeddings.
+
+        Parameters
+        ----------
+        skills : list[Skill]
+            Skills to add to the index.
+        """
         if not skills:
-            logger.warning("No skills to index")
-            self.skills = []
-            self.embeddings = None
             return
 
-        logger.info(f"Indexing {len(skills)} skills...")
-        self.skills = skills
+        with self._lock:
+            logger.info(f"Adding {len(skills)} skills to index...")
 
-        # Generate embeddings from skill descriptions
-        descriptions = [skill.description for skill in skills]
-        self.embeddings = self.model.encode(descriptions, convert_to_numpy=True)
+            # Generate embeddings for new skills
+            descriptions = [skill.description for skill in skills]
+            new_embeddings = self.model.encode(descriptions, convert_to_numpy=True)
 
-        logger.info(f"Successfully indexed {len(skills)} skills")
+            # Append to existing skills and embeddings
+            self.skills.extend(skills)
+
+            if self.embeddings is None:
+                # First batch of skills
+                self.embeddings = new_embeddings
+            else:
+                # Append to existing embeddings
+                self.embeddings = np.vstack([self.embeddings, new_embeddings])
+
+            logger.info(
+                f"Successfully added {len(skills)} skills. Total: {len(self.skills)} skills"
+            )
 
     def search(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
         """Search for the most relevant skills based on a query.
@@ -76,38 +113,39 @@ class SkillSearchEngine:
         list[dict[str, Any]]
             List of skill dictionaries with relevance scores, sorted by relevance.
         """
-        if not self.skills or self.embeddings is None:
-            logger.warning("No skills indexed, returning empty results")
-            return []
+        with self._lock:
+            if not self.skills or self.embeddings is None:
+                logger.warning("No skills indexed, returning empty results")
+                return []
 
-        # Ensure top_k doesn't exceed available skills
-        top_k = min(top_k, len(self.skills))
+            # Ensure top_k doesn't exceed available skills
+            top_k = min(top_k, len(self.skills))
 
-        logger.info(f"Searching for: '{query}' (top_k={top_k})")
+            logger.info(f"Searching for: '{query}' (top_k={top_k})")
 
-        # Generate embedding for the query
-        query_embedding = self.model.encode([query], convert_to_numpy=True)[0]
+            # Generate embedding for the query
+            query_embedding = self.model.encode([query], convert_to_numpy=True)[0]
 
-        # Compute cosine similarity
-        similarities = self._cosine_similarity(query_embedding, self.embeddings)
+            # Compute cosine similarity
+            similarities = self._cosine_similarity(query_embedding, self.embeddings)
 
-        # Get top-k indices
-        top_indices = np.argsort(similarities)[::-1][:top_k]
+            # Get top-k indices
+            top_indices = np.argsort(similarities)[::-1][:top_k]
 
-        # Build results
-        results = []
-        for idx in top_indices:
-            skill = self.skills[idx]
-            score = float(similarities[idx])
+            # Build results
+            results = []
+            for idx in top_indices:
+                skill = self.skills[idx]
+                score = float(similarities[idx])
 
-            result = skill.to_dict()
-            result["relevance_score"] = score
-            results.append(result)
+                result = skill.to_dict()
+                result["relevance_score"] = score
+                results.append(result)
 
-            logger.debug(f"Found skill: {skill.name} (score: {score:.4f})")
+                logger.debug(f"Found skill: {skill.name} (score: {score:.4f})")
 
-        logger.info(f"Returning {len(results)} results")
-        return results
+            logger.info(f"Returning {len(results)} results")
+            return results
 
     @staticmethod
     def _cosine_similarity(vec: np.ndarray, matrix: np.ndarray) -> np.ndarray:

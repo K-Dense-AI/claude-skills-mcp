@@ -2,6 +2,7 @@
 
 import fnmatch
 import logging
+import threading
 from typing import Any
 
 from mcp.server import Server
@@ -11,6 +12,83 @@ from mcp.types import Tool, TextContent
 from .search_engine import SkillSearchEngine
 
 logger = logging.getLogger(__name__)
+
+
+class LoadingState:
+    """Thread-safe state tracker for background skill loading.
+
+    Attributes
+    ----------
+    total_skills : int
+        Total number of skills expected to be loaded.
+    loaded_skills : int
+        Number of skills loaded so far.
+    is_complete : bool
+        Whether loading is complete.
+    errors : list[str]
+        List of error messages encountered during loading.
+    _lock : threading.Lock
+        Lock for thread-safe access.
+    """
+
+    def __init__(self):
+        """Initialize loading state."""
+        self.total_skills = 0
+        self.loaded_skills = 0
+        self.is_complete = False
+        self.errors: list[str] = []
+        self._lock = threading.Lock()
+
+    def update_progress(self, loaded: int, total: int | None = None) -> None:
+        """Update loading progress.
+
+        Parameters
+        ----------
+        loaded : int
+            Number of skills loaded.
+        total : int | None, optional
+            Total skills expected (if known), by default None.
+        """
+        with self._lock:
+            self.loaded_skills = loaded
+            if total is not None:
+                self.total_skills = total
+
+    def add_error(self, error: str) -> None:
+        """Add an error message.
+
+        Parameters
+        ----------
+        error : str
+            Error message to record.
+        """
+        with self._lock:
+            self.errors.append(error)
+
+    def mark_complete(self) -> None:
+        """Mark loading as complete."""
+        with self._lock:
+            self.is_complete = True
+
+    def get_status_message(self) -> str | None:
+        """Get current loading status message.
+
+        Returns
+        -------
+        str | None
+            Status message if loading is in progress, None if complete.
+        """
+        with self._lock:
+            if self.is_complete:
+                return None
+
+            if self.loaded_skills == 0:
+                return "[LOADING: Skills are being loaded in the background, please wait...]\n"
+
+            if self.total_skills > 0:
+                return f"[LOADING: {self.loaded_skills}/{self.total_skills} skills loaded, indexing in progress...]\n"
+            else:
+                return f"[LOADING: {self.loaded_skills} skills loaded so far, indexing in progress...]\n"
 
 
 class SkillsMCPServer:
@@ -24,11 +102,14 @@ class SkillsMCPServer:
         Default number of results to return.
     max_content_chars : int | None
         Maximum characters for skill content (None for unlimited).
+    loading_state : LoadingState
+        State tracker for background skill loading.
     """
 
     def __init__(
         self,
         search_engine: SkillSearchEngine,
+        loading_state: LoadingState,
         default_top_k: int = 3,
         max_content_chars: int | None = None,
     ):
@@ -38,12 +119,15 @@ class SkillsMCPServer:
         ----------
         search_engine : SkillSearchEngine
             Initialized search engine with indexed skills.
+        loading_state : LoadingState
+            State tracker for background skill loading.
         default_top_k : int, optional
             Default number of results to return, by default 3.
         max_content_chars : int | None, optional
             Maximum characters for skill content. None for unlimited, by default None.
         """
         self.search_engine = search_engine
+        self.loading_state = loading_state
         self.default_top_k = default_top_k
         self.max_content_chars = max_content_chars
         self.server = Server("claude-skills-mcp")
@@ -187,11 +271,32 @@ class SkillsMCPServer:
         top_k = arguments.get("top_k", self.default_top_k)
         list_documents = arguments.get("list_documents", True)
 
+        # Build formatted response
+        response_parts = []
+
+        # Add loading status if skills are still being loaded
+        status_msg = self.loading_state.get_status_message()
+        if status_msg:
+            response_parts.append(status_msg)
+
         # Perform search
         results = self.search_engine.search(task_description, top_k)
 
         # Format results as text
         if not results:
+            # Check if we have no results because skills are still loading
+            if (
+                not self.loading_state.is_complete
+                and self.loading_state.loaded_skills == 0
+            ):
+                return [
+                    TextContent(
+                        type="text",
+                        text=status_msg
+                        or ""
+                        + "No skills loaded yet. Please wait for skills to load and try again.",
+                    )
+                ]
             return [
                 TextContent(
                     type="text",
@@ -199,10 +304,9 @@ class SkillsMCPServer:
                 )
             ]
 
-        # Build formatted response
-        response_parts = [
+        response_parts.append(
             f"Found {len(results)} relevant skill(s) for: '{task_description}'\n"
-        ]
+        )
 
         for i, result in enumerate(results, 1):
             response_parts.append(f"\n{'=' * 80}")
@@ -418,14 +522,31 @@ class SkillsMCPServer:
         list[TextContent]
             Complete list of all skills with metadata.
         """
+        response_parts = []
+
+        # Add loading status if skills are still being loaded
+        status_msg = self.loading_state.get_status_message()
+        if status_msg:
+            response_parts.append(status_msg)
+
         if not self.search_engine.skills:
+            if not self.loading_state.is_complete:
+                return [
+                    TextContent(
+                        type="text",
+                        text=status_msg
+                        or "" + "No skills loaded yet. Please wait for skills to load.",
+                    )
+                ]
             return [TextContent(type="text", text="No skills currently loaded.")]
 
-        response_parts = [
-            f"Total skills loaded: {len(self.search_engine.skills)}\n",
-            "=" * 80,
-            "\n",
-        ]
+        response_parts.extend(
+            [
+                f"Total skills loaded: {len(self.search_engine.skills)}\n",
+                "=" * 80,
+                "\n",
+            ]
+        )
 
         for i, skill in enumerate(self.search_engine.skills, 1):
             # Format source as owner/repo for GitHub URLs

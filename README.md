@@ -49,6 +49,46 @@ uvx claude-skills-mcp --example-config > config.json
 uvx claude-skills-mcp --config config.json
 ```
 
+## Setup for Your AI Assistant
+
+### Cursor
+
+Add to your MCP settings (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "claude-skills": {
+      "command": "uvx",
+      "args": ["claude-skills-mcp"]
+    }
+  }
+}
+```
+
+Restart Cursor and the skills will be available to the AI assistant.
+
+### Claude Desktop
+
+Add to your MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "claude-skills": {
+      "command": "uvx",
+      "args": ["claude-skills-mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop to activate.
+
+### Other MCP-Compatible Tools
+
+Any tool supporting the Model Context Protocol can use this server via `uvx claude-skills-mcp`. Consult your tool's MCP configuration documentation.
+
 ## Architecture
 
 Built on five core components: Configuration (JSON-based config loading), Skill Loader (GitHub + local with automatic caching), Search Engine (sentence-transformers vector search), MCP Server (three tools with stdio transport), and CLI Entry Point (argument parsing and lifecycle management).
