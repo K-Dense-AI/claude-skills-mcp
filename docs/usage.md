@@ -337,6 +337,35 @@ vs.
 - Use smaller embedding models
 - Keep skills on local filesystem instead of GitHub
 
+## Exploring Available Skills
+
+### Using `list_skills` Tool
+
+The `list_skills` tool provides a complete inventory of all loaded skills. This is useful for:
+- Understanding what skills are available in your configuration
+- Debugging why certain skills might not appear in searches
+- Exploring the skill repository structure
+
+**Example conversation:**
+```
+User: What skills do you have access to?
+
+AI: I'll check what skills are loaded...
+[Invokes list_skills tool]
+
+The server currently has 78 skills loaded from K-Dense-AI/claude-scientific-skills:
+1. biopython - Comprehensive biological sequence analysis and manipulation
+2. rdkit - Chemical informatics and molecular manipulation
+3. scanpy - Single-cell RNA sequencing analysis framework
+...
+```
+
+**When to use `list_skills` vs `search_skills`:**
+- Use `list_skills` to browse all available skills (exploration)
+- Use `search_skills` to find relevant skills for a specific task (task-oriented)
+
+**Note:** `list_skills` returns ALL skills, which can be a large amount of text. For finding skills relevant to your task, prefer `search_skills` which uses semantic search to return only the most relevant matches.
+
 ## Troubleshooting
 
 ### Skills Not Matching Expected Results
@@ -355,8 +384,21 @@ vs.
 
 **Solutions**:
 - Wait an hour (60 requests/hour for unauthenticated)
-- Cache skills locally after first load
 - Use local directories instead of GitHub for development
+- The server automatically caches GitHub API responses (see below)
+
+**Automatic Caching (v0.1.0+):**
+
+The server now automatically caches GitHub API responses to avoid rate limits:
+- Cache location: System temp directory (`/tmp/claude_skills_mcp_cache/` or similar)
+- Cache validity: 24 hours
+- Automatic cache invalidation after expiry
+- No configuration needed - caching happens automatically
+
+This means:
+- First run: Downloads from GitHub (uses API quota)
+- Subsequent runs: Uses cache (no API calls for 24 hours)
+- Dramatically faster startup after first run
 
 **Note**: Only the tree API call counts against the limit, not the raw content downloads.
 
