@@ -92,8 +92,8 @@ class SkillsMCPServer:
                             },
                             "list_documents": {
                                 "type": "boolean",
-                                "description": "Include a list of available documents (scripts, references, assets) for each skill (default: False)",
-                                "default": False,
+                                "description": "Include a list of available documents (scripts, references, assets) for each skill (default: True)",
+                                "default": True,
                             },
                         },
                         "required": ["task_description"],
@@ -165,7 +165,7 @@ class SkillsMCPServer:
             raise ValueError("task_description is required")
 
         top_k = arguments.get("top_k", self.default_top_k)
-        list_documents = arguments.get("list_documents", False)
+        list_documents = arguments.get("list_documents", True)
 
         # Perform search
         results = self.search_engine.search(task_description, top_k)
