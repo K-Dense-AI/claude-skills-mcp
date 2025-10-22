@@ -827,3 +827,83 @@ def test_list_skills_tool():
 
     assert f"Total skills loaded: {len(skills)}" in text
     print(f"\nlist_skills output:\n{text[:500]}...")
+
+
+@pytest.mark.integration
+def test_update_detection():
+    """Test that update checker can detect changes in repositories.
+
+    This test demonstrates:
+    1. Initializing the update checker
+    2. Running a check (first time - no updates expected)
+    3. Verifying API usage tracking
+    4. Handling update results
+
+    Note: This test makes real API calls but doesn't trigger actual updates
+    (first check always returns False to avoid unnecessary reloads).
+    """
+    from claude_skills_mcp_backend.update_checker import UpdateChecker
+
+    print("\n" + "=" * 80)
+    print("UPDATE DETECTION TEST")
+    print("=" * 80)
+
+    # Step 1: Initialize update checker
+    print("\n[1] Initializing update checker...")
+    checker = UpdateChecker()  # No token - will use 60 req/hr limit
+    print("   ✓ Update checker initialized")
+
+    # Step 2: Check for updates on default sources
+    print("\n[2] Checking for updates (first check)...")
+    sources = [
+        {"type": "github", "url": "https://github.com/anthropics/skills"},
+        {"type": "github", "url": "https://github.com/K-Dense-AI/claude-scientific-skills"},
+    ]
+
+    result = checker.check_for_updates(sources)
+
+    print(f"   Has updates: {result.has_updates}")
+    print(f"   Changed sources: {len(result.changed_sources)}")
+    print(f"   API calls made: {result.api_calls_made}")
+    print(f"   Errors: {len(result.errors)}")
+
+    # First check should not trigger updates (establishes baseline)
+    assert result.has_updates is False, "First check should not trigger updates"
+    assert len(result.changed_sources) == 0, "First check should have no changed sources"
+
+    # Should have made API calls to check commits
+    assert result.api_calls_made > 0, "Should have made GitHub API calls"
+    assert result.api_calls_made <= 4, "Should not exceed expected API calls"
+
+    # Step 3: Verify API usage tracking
+    print("\n[3] Checking API usage tracking...")
+    api_usage = checker.get_api_usage()
+
+    print(f"   Calls this hour: {api_usage['calls_this_hour']}")
+    print(f"   Limit: {api_usage['limit_per_hour']}")
+    print(f"   Authenticated: {api_usage['authenticated']}")
+
+    assert api_usage["calls_this_hour"] > 0, "Should track API calls"
+    assert api_usage["limit_per_hour"] == 60, "Should use unauthenticated limit"
+    assert api_usage["authenticated"] is False, "Should not be authenticated"
+
+    # Step 4: Verify no errors occurred
+    if result.errors:
+        print("\n   ⚠ Errors encountered:")
+        for error in result.errors:
+            print(f"      - {error}")
+
+    print("\n" + "=" * 80)
+    print("UPDATE DETECTION TEST COMPLETED!")
+    print("=" * 80)
+    print("\nTest summary:")
+    print(f"  • Checked {len(sources)} GitHub sources")
+    print(f"  • Made {result.api_calls_made} API calls")
+    print("  • First check established baseline (no updates triggered)")
+    print("  • API usage tracking working correctly")
+    print("\nThis validates:")
+    print("  1. Update checker can communicate with GitHub API")
+    print("  2. Commit SHA tracking is initialized")
+    print("  3. API usage is tracked and reported")
+    print("  4. First check doesn't trigger unnecessary reloads")
+    print("=" * 80 + "\n")

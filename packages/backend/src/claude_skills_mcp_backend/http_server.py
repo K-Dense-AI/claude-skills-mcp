@@ -4,6 +4,7 @@ import asyncio
 import logging
 import sys
 import threading
+from datetime import datetime
 from typing import Any
 
 from starlette.applications import Starlette
@@ -15,8 +16,10 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Tool, TextContent
 
 from .search_engine import SkillSearchEngine
-from .skill_loader import load_skills_in_batches
+from .skill_loader import load_skills_in_batches, load_all_skills
 from .config import load_config
+from .update_checker import UpdateChecker
+from .scheduler import HourlyScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,9 @@ mcp_server = Server("claude-skills-mcp-backend")
 session_manager: StreamableHTTPSessionManager | None = None
 search_engine: SkillSearchEngine | None = None
 loading_state_global = None
+update_checker_global: UpdateChecker | None = None
+scheduler_global: HourlyScheduler | None = None
+config_global: dict[str, Any] | None = None
 
 
 class LoadingState:
@@ -185,13 +191,39 @@ async def health_check(request):
     skills_loaded = len(search_engine.skills) if search_engine else 0
     models_loaded = search_engine.model is not None if search_engine else False
     
-    return JSONResponse({
+    response = {
         "status": "ok",
         "version": "1.0.0",
         "skills_loaded": skills_loaded,
         "models_loaded": models_loaded,
-        "loading_complete": loading_state_global.is_complete if loading_state_global else False
-    })
+        "loading_complete": loading_state_global.is_complete if loading_state_global else False,
+    }
+    
+    # Add auto-update information
+    if config_global:
+        response["auto_update_enabled"] = config_global.get("auto_update_enabled", False)
+    
+    if scheduler_global:
+        scheduler_status = scheduler_global.get_status()
+        response.update({
+            "next_update_check": scheduler_status.get("next_run_time"),
+            "last_update_check": scheduler_status.get("last_run_time"),
+        })
+    
+    if update_checker_global:
+        api_usage = update_checker_global.get_api_usage()
+        response.update({
+            "github_api_calls_this_hour": api_usage.get("calls_this_hour", 0),
+            "github_api_limit": api_usage.get("limit_per_hour", 60),
+            "github_authenticated": api_usage.get("authenticated", False),
+        })
+    
+    if loading_state_global:
+        with loading_state_global._lock:
+            if loading_state_global.errors:
+                response["update_errors"] = loading_state_global.errors[-5:]  # Last 5 errors
+    
+    return JSONResponse(response)
 
 
 # Create Starlette app
@@ -204,7 +236,7 @@ app = Starlette(routes=routes)
 
 async def initialize_backend(config_path: str | None = None, verbose: bool = False):
     """Initialize search engine and load skills."""
-    global search_engine, loading_state_global
+    global search_engine, loading_state_global, update_checker_global, scheduler_global, config_global
     
     # Setup logging
     level = logging.DEBUG if verbose else logging.INFO
@@ -217,6 +249,7 @@ async def initialize_backend(config_path: str | None = None, verbose: bool = Fal
     
     # Load configuration
     config = load_config(config_path)
+    config_global = config
     
     # Initialize search engine
     logger.info("Initializing search engine...")
@@ -224,6 +257,11 @@ async def initialize_backend(config_path: str | None = None, verbose: bool = Fal
     
     # Initialize loading state
     loading_state_global = LoadingState()
+    
+    # Initialize update checker
+    github_token = config.get("github_api_token")
+    update_checker_global = UpdateChecker(github_token)
+    logger.info(f"Update checker initialized (GitHub token: {'provided' if github_token else 'not provided'})")
     
     # Register MCP handlers
     register_mcp_handlers(
@@ -258,6 +296,65 @@ async def initialize_backend(config_path: str | None = None, verbose: bool = Fal
     loader_thread = threading.Thread(target=background_loader, daemon=True)
     loader_thread.start()
     logger.info("Background loading thread started, server is ready")
+    
+    # Setup auto-update scheduler if enabled
+    if config.get("auto_update_enabled", False):
+        interval_minutes = config.get("auto_update_interval_minutes", 60)
+        
+        async def update_callback():
+            """Callback for scheduled updates."""
+            try:
+                logger.info("Running scheduled update check...")
+                
+                # Check for updates
+                result = update_checker_global.check_for_updates(config["skill_sources"])
+                
+                logger.info(
+                    f"Update check complete: {len(result.changed_sources)} sources changed, "
+                    f"{result.api_calls_made} API calls made"
+                )
+                
+                if result.errors:
+                    for error in result.errors:
+                        logger.warning(f"Update check error: {error}")
+                        loading_state_global.add_error(error)
+                
+                # Reload skills if updates detected
+                if result.has_updates:
+                    logger.info(f"Reloading {len(result.changed_sources)} changed sources...")
+                    
+                    # For simplicity, reload all skills if any changed
+                    # This clears the index and reloads everything
+                    logger.info("Reloading all skills...")
+                    new_skills = load_all_skills(
+                        skill_sources=config["skill_sources"],
+                        config=config
+                    )
+                    
+                    # Re-index all skills
+                    search_engine.index_skills(new_skills)
+                    logger.info(f"Re-indexed {len(new_skills)} skills after update")
+                else:
+                    logger.info("No updates detected")
+                
+                # Warn if approaching API limit (only for non-authenticated)
+                api_usage = update_checker_global.get_api_usage()
+                if not api_usage["authenticated"] and api_usage["calls_this_hour"] >= 50:
+                    logger.warning(
+                        f"Approaching GitHub API rate limit: {api_usage['calls_this_hour']}/60 calls this hour"
+                    )
+                    
+            except Exception as e:
+                error_msg = f"Error during scheduled update: {e}"
+                logger.error(error_msg, exc_info=True)
+                loading_state_global.add_error(error_msg)
+        
+        # Create and start scheduler
+        scheduler_global = HourlyScheduler(interval_minutes, update_callback)
+        scheduler_global.start()
+        logger.info(f"Auto-update scheduler started (interval: {interval_minutes} minutes)")
+    else:
+        logger.info("Auto-update disabled in configuration")
 
 
 async def run_server(host: str = "127.0.0.1", port: int = 8765, config_path: str | None = None, verbose: bool = False):

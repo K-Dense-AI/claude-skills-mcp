@@ -9,7 +9,7 @@ The v1.0.0 system uses a **frontend-backend architecture** with two separate pac
 - **Frontend** (`claude-skills-mcp`): Lightweight MCP proxy that starts instantly
 - **Backend** (`claude-skills-mcp-backend`): Heavy server with vector search and skill loading
 
-The backend consists of five core components working together to provide intelligent skill discovery through the Model Context Protocol.
+The backend consists of seven core components working together to provide intelligent skill discovery through the Model Context Protocol.
 
 ## Core Components
 
@@ -241,16 +241,94 @@ Load configuration
     ↓
 Initialize skill loader
     ↓
-Load skills from sources
+Load skills from sources (background thread)
     ↓
 Initialize search engine
     ↓
-Index skills
+Index skills (incremental)
+    ↓
+Initialize auto-update system (if enabled)
     ↓
 Start MCP server
     ↓
 Listen for tool calls
 ```
+
+### 6. Auto-Update System (`update_checker.py`, `scheduler.py`, `state_manager.py`)
+
+**Purpose**: Automatically detect and reload skills when remote or local sources change.
+
+**Key Features**:
+- **Hourly scheduling** synchronized to exact clockface hours (e.g., 12:00, 13:00)
+- **Efficient change detection**:
+  - GitHub: Commit SHA comparison (1 API call per repo)
+  - Local: File modification time tracking
+- **State persistence** survives server restarts
+- **API rate limit awareness** (60 req/hr unauthenticated, 5000 with token)
+- **Graceful error handling** with retry on next cycle
+
+**Components**:
+
+**UpdateChecker**:
+- Orchestrates update checking across all sources
+- Tracks API usage and warns when approaching limits
+- Returns list of changed sources for selective reloading
+
+**GitHubSourceTracker**:
+- Checks HEAD commit SHA via GitHub API
+- Compares against last known SHA from persistent state
+- Only triggers update if SHA has changed
+- Respects rate limits and tracks usage
+
+**LocalSourceTracker**:
+- Scans for `SKILL.md` files in configured directories
+- Tracks modification times of all skill files
+- Detects new, modified, or deleted files
+
+**HourlyScheduler**:
+- Calculates time until next exact hour on startup
+- Runs update checks at configured intervals (default: 60 min)
+- Aligns to clockface hours for predictable scheduling
+- Handles cancellation and errors gracefully
+
+**StateManager**:
+- Persists commit SHAs and modification times to disk
+- Cache location: `/tmp/claude_skills_mcp_cache/state/`
+- Prevents false positives on first check after restart
+
+**Update Flow**:
+```
+Hourly Scheduler (wait until :00)
+    ↓
+Check GitHub sources (commit SHA)
+    ↓
+Check local sources (mtime)
+    ↓
+Changes detected?
+    ├─ No → Log and continue
+    └─ Yes → Reload all skills
+               ↓
+           Re-index embeddings
+               ↓
+           Update complete
+```
+
+**Configuration**:
+```json
+{
+  "auto_update_enabled": true,
+  "auto_update_interval_minutes": 60,
+  "github_api_token": null
+}
+```
+
+**API Budget** (default 2 GitHub sources):
+- Commit checks: 2 calls/hour
+- On change: +2 tree API calls = 4 total/hour
+- Remaining: 56 calls/hour for other operations
+- Raw content access: Unlimited (doesn't count against limit)
+
+See [auto-update.md](auto-update.md) for detailed documentation.
 
 ## Data Flow
 

@@ -25,6 +25,12 @@
   "max_image_size_bytes": 5242880,
   "comment_max_image": "Maximum image file size (5MB). Larger images store URL only",
   "allowed_image_extensions": [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"],
-  "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"]
+  "text_file_extensions": [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sh", ".r", ".ipynb", ".xml"],
+  "auto_update_enabled": true,
+  "comment_auto_update": "Enable automatic hourly skill updates (checks at :00 of each hour)",
+  "auto_update_interval_minutes": 60,
+  "comment_interval": "Check for updates every N minutes (synced to clockface hours)",
+  "github_api_token": null,
+  "comment_token": "Optional GitHub personal access token for 5000 req/hr (default: 60 req/hr)"
 }
 

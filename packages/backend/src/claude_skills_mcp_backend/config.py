@@ -40,6 +40,9 @@ DEFAULT_CONFIG = {
         ".ipynb",
         ".xml",
     ],
+    "auto_update_enabled": True,  # Enable automatic hourly skill updates
+    "auto_update_interval_minutes": 60,  # Check for updates every N minutes
+    "github_api_token": None,  # Optional GitHub token for 5000 req/hr (None = 60 req/hr)
 }
 
 
@@ -128,5 +131,11 @@ def get_example_config() -> str:
             ".ipynb",
             ".xml",
         ],
+        "auto_update_enabled": True,
+        "comment_auto_update": "Enable automatic hourly skill updates (checks at :00 of each hour)",
+        "auto_update_interval_minutes": 60,
+        "comment_interval": "Check for updates every N minutes (synced to clockface hours)",
+        "github_api_token": None,
+        "comment_token": "Optional GitHub personal access token for 5000 req/hr (default: 60 req/hr)",
     }
     return json.dumps(config_with_comments, indent=2)
