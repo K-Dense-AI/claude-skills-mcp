@@ -10,7 +10,7 @@ from .mcp_proxy import MCPProxy
 
 def setup_logging(verbose: bool = False) -> None:
     """Configure logging.
-    
+
     Parameters
     ----------
     verbose : bool, optional
@@ -27,9 +27,9 @@ def setup_logging(verbose: bool = False) -> None:
 
 def parse_args() -> tuple[argparse.Namespace, list[str]]:
     """Parse command line arguments.
-    
+
     Frontend accepts SUPERSET of backend args and forwards them.
-    
+
     Returns
     -------
     tuple[argparse.Namespace, list[str]]
@@ -65,7 +65,10 @@ Examples:
     )
 
     parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose logging (frontend and backend)"
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable verbose logging (frontend and backend)",
     )
 
     # Backend arguments (forwarded when spawning backend)
@@ -99,19 +102,19 @@ Examples:
 
     # Build backend args list
     backend_args = []
-    
+
     if args.port != 8765:
         backend_args.extend(["--port", str(args.port)])
-    
+
     if args.host != "127.0.0.1":
         backend_args.extend(["--host", args.host])
-    
+
     if args.config:
         backend_args.extend(["--config", args.config])
-    
+
     if args.verbose:
         backend_args.append("--verbose")
-    
+
     if args.example_config:
         backend_args.append("--example-config")
 
@@ -131,22 +134,26 @@ async def main_async() -> None:
     # Handle example config - just forward to backend
     if args.example_config:
         import subprocess
+
         try:
             # Try to call backend directly if installed
             result = subprocess.run(
                 ["claude-skills-mcp-backend", "--example-config"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0:
                 print(result.stdout)
                 return
         except Exception:
             pass
-        
+
         # Fallback: show message
-        print("# Backend not installed yet. Run without --example-config first to install.", file=sys.stderr)
+        print(
+            "# Backend not installed yet. Run without --example-config first to install.",
+            file=sys.stderr,
+        )
         print("# Default configuration will be used by the backend.", file=sys.stderr)
         sys.exit(1)
 
@@ -159,7 +166,7 @@ async def main_async() -> None:
             print("Remote backend not yet implemented in v1.0.0", file=sys.stderr)
             print("Please use local backend for now", file=sys.stderr)
             sys.exit(1)
-        
+
         # Create and start proxy with backend args
         proxy = MCPProxy(backend_args=backend_args)
         await proxy.start()
@@ -180,4 +187,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

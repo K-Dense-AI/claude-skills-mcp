@@ -61,48 +61,49 @@ class TestHourlyScheduler:
     async def test_scheduler_runs_callback(self):
         """Test that scheduler runs the callback."""
         callback = AsyncMock()
-        
+
         # Use a very short interval for testing (1 second)
         scheduler = HourlyScheduler(interval_minutes=1, update_callback=callback)
-        
+
         # Manually set next run to very soon to speed up test
         scheduler._running = True
         scheduler.next_run_time = datetime.now() + timedelta(seconds=0.1)
-        
+
         # Create a task that will run the callback once
         async def run_once():
             """Run scheduler loop once."""
             # Wait for next run
             await asyncio.sleep(0.2)
-            
+
             # Manually trigger the callback as we would in the loop
             await callback()
-            
+
             scheduler._running = False
-        
+
         await asyncio.wait_for(run_once(), timeout=1.0)
-        
+
         # Verify callback was called
         assert callback.call_count >= 1
 
     @pytest.mark.asyncio
     async def test_scheduler_handles_errors(self):
         """Test that scheduler handles callback errors gracefully."""
+
         # Callback that raises an exception
         async def error_callback():
             raise ValueError("Test error")
 
         scheduler = HourlyScheduler(1, error_callback)
-        
+
         # Scheduler should not crash when callback raises
         scheduler.start()
-        
+
         # Give it a moment
         await asyncio.sleep(0.1)
-        
+
         # Stop it
         await scheduler.stop()
-        
+
         # Should have stopped cleanly
         assert scheduler._running is False
 
@@ -120,13 +121,12 @@ class TestHourlyScheduler:
 
         # Start scheduler
         scheduler.start()
-        
+
         # Give it a moment to initialize
         await asyncio.sleep(0.1)
-        
+
         status = scheduler.get_status()
         assert status["running"] is True
-        
+
         # Clean up
         await scheduler.stop()
-

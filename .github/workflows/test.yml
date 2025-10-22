@@ -22,7 +22,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd packages/backend
-          uv pip install -e ".[test]"
+          uv sync --extra test
       
       - name: Run backend unit tests
         run: |
@@ -51,7 +51,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd packages/frontend
-          uv pip install -e ".[test]"
+          uv sync --extra test
       
       - name: Test frontend imports
         run: |

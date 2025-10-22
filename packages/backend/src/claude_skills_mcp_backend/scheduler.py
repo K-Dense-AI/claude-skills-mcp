@@ -101,16 +101,22 @@ class HourlyScheduler:
         while self._running:
             try:
                 # Run the update check
-                logger.info(f"Running scheduled update check at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                logger.info(
+                    f"Running scheduled update check at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
                 self.last_run_time = datetime.now()
 
                 await self.update_callback()
 
                 # Calculate next run time
-                self.next_run_time = datetime.now() + timedelta(minutes=self.interval_minutes)
+                self.next_run_time = datetime.now() + timedelta(
+                    minutes=self.interval_minutes
+                )
                 # Align to exact hour if interval is 60 minutes
                 if self.interval_minutes == 60:
-                    self.next_run_time = self.next_run_time.replace(minute=0, second=0, microsecond=0)
+                    self.next_run_time = self.next_run_time.replace(
+                        minute=0, second=0, microsecond=0
+                    )
 
                 seconds_until_next = self._calculate_seconds_until(self.next_run_time)
 
@@ -170,7 +176,10 @@ class HourlyScheduler:
         return {
             "running": self._running,
             "interval_minutes": self.interval_minutes,
-            "next_run_time": self.next_run_time.isoformat() if self.next_run_time else None,
-            "last_run_time": self.last_run_time.isoformat() if self.last_run_time else None,
+            "next_run_time": self.next_run_time.isoformat()
+            if self.next_run_time
+            else None,
+            "last_run_time": self.last_run_time.isoformat()
+            if self.last_run_time
+            else None,
         }
-

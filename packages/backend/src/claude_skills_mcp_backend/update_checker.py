@@ -199,7 +199,9 @@ class GitHubSourceTracker:
         # Check if SHA changed
         if last_sha is None:
             # First time checking, save SHA but don't trigger update
-            logger.info(f"First check for {owner}/{repo}@{branch}, SHA: {current_sha[:7]}")
+            logger.info(
+                f"First check for {owner}/{repo}@{branch}, SHA: {current_sha[:7]}"
+            )
             self.state_manager.set(state_key, current_sha)
             self.state_manager.save_state()
             return False
@@ -309,7 +311,9 @@ class LocalSourceTracker:
                 if file_key not in last_mtimes:
                     logger.info(f"New skill file detected: {skill_file}")
                     has_changes = True
-                elif abs(last_mtimes[file_key] - mtime) > 0.001:  # Allow small float differences
+                elif (
+                    abs(last_mtimes[file_key] - mtime) > 0.001
+                ):  # Allow small float differences
                     logger.info(f"Modified skill file detected: {skill_file}")
                     has_changes = True
             except Exception as e:
@@ -329,7 +333,9 @@ class LocalSourceTracker:
 
             # Don't trigger update on first check
             if not last_mtimes:
-                logger.info(f"First check for local path {path}, tracking {len(skill_files)} files")
+                logger.info(
+                    f"First check for local path {path}, tracking {len(skill_files)} files"
+                )
                 return False
 
         return has_changes
@@ -408,4 +414,3 @@ class UpdateChecker:
             API usage info.
         """
         return self.github_tracker.get_api_usage()
-

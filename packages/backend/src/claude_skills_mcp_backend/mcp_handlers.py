@@ -585,11 +585,10 @@ async def handle_search_skills(
     search_engine,
     loading_state,
     default_top_k: int = 3,
-    max_content_chars: int | None = None
+    max_content_chars: int | None = None,
 ) -> list[TextContent]:
     """Handle search_skills tool calls (standalone version for HTTP server)."""
-    import fnmatch
-    
+
     task_description = arguments.get("task_description")
     if not task_description:
         raise ValueError("task_description is required")
@@ -608,11 +607,16 @@ async def handle_search_skills(
     results = search_engine.search(task_description, top_k)
 
     if not results:
-        if loading_state and not loading_state.is_complete and loading_state.loaded_skills == 0:
+        if (
+            loading_state
+            and not loading_state.is_complete
+            and loading_state.loaded_skills == 0
+        ):
             return [
                 TextContent(
                     type="text",
-                    text=(status_msg or "") + "No skills loaded yet. Please wait for skills to load and try again.",
+                    text=(status_msg or "")
+                    + "No skills loaded yet. Please wait for skills to load and try again.",
                 )
             ]
         return [
@@ -635,9 +639,7 @@ async def handle_search_skills(
 
         documents = result.get("documents", {})
         if documents:
-            response_parts.append(
-                f"\nAdditional Documents: {len(documents)} file(s)"
-            )
+            response_parts.append(f"\nAdditional Documents: {len(documents)} file(s)")
 
             if list_documents:
                 response_parts.append("\nAvailable Documents:")
@@ -669,10 +671,12 @@ async def handle_search_skills(
     return [TextContent(type="text", text="\n".join(response_parts))]
 
 
-async def handle_read_skill_document(arguments: dict[str, Any], search_engine) -> list[TextContent]:
+async def handle_read_skill_document(
+    arguments: dict[str, Any], search_engine
+) -> list[TextContent]:
     """Handle read_skill_document tool calls (standalone version for HTTP server)."""
     import fnmatch
-    
+
     skill_name = arguments.get("skill_name")
     if not skill_name:
         raise ValueError("skill_name is required")
@@ -756,9 +760,7 @@ async def handle_read_skill_document(arguments: dict[str, Any], search_engine) -
                 )
                 response_parts.append(f"\nURL: {doc_info.get('url', 'N/A')}")
             elif include_base64:
-                response_parts.append(
-                    f"Base64 Content:\n{doc_info.get('content', '')}"
-                )
+                response_parts.append(f"Base64 Content:\n{doc_info.get('content', '')}")
                 if "url" in doc_info:
                     response_parts.append(
                         f"\n\nAlternatively, access via URL: {doc_info['url']}"
@@ -780,9 +782,7 @@ async def handle_read_skill_document(arguments: dict[str, Any], search_engine) -
             response_parts.append(f"\n{'=' * 80}")
             response_parts.append(f"\nDocument: {doc_path}")
             response_parts.append(f"\nType: {doc_type}")
-            response_parts.append(
-                f"\nSize: {doc_info.get('size', 0) / 1024:.1f} KB"
-            )
+            response_parts.append(f"\nSize: {doc_info.get('size', 0) / 1024:.1f} KB")
 
             if doc_type == "text":
                 response_parts.append("\nContent:")
@@ -807,10 +807,12 @@ async def handle_read_skill_document(arguments: dict[str, Any], search_engine) -
     return [TextContent(type="text", text="\n".join(response_parts))]
 
 
-async def handle_list_skills(arguments: dict[str, Any], search_engine, loading_state) -> list[TextContent]:
+async def handle_list_skills(
+    arguments: dict[str, Any], search_engine, loading_state
+) -> list[TextContent]:
     """Handle list_skills tool calls (standalone version for HTTP server)."""
     import re
-    
+
     response_parts = []
 
     # Add loading status if skills are still being loaded
@@ -823,7 +825,8 @@ async def handle_list_skills(arguments: dict[str, Any], search_engine, loading_s
             return [
                 TextContent(
                     type="text",
-                    text=(status_msg or "") + "No skills loaded yet. Please wait for skills to load.",
+                    text=(status_msg or "")
+                    + "No skills loaded yet. Please wait for skills to load.",
                 )
             ]
         return [TextContent(type="text", text="No skills currently loaded.")]

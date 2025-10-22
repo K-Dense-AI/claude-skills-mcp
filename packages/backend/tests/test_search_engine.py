@@ -14,7 +14,7 @@ def test_search_engine_initialization():
     assert engine.model_name == "all-MiniLM-L6-v2"
     assert engine.skills == []
     assert engine.embeddings is None
-    
+
     # Model should be loaded when ensure_model_loaded is called
     model = engine._ensure_model_loaded()
     assert model is not None

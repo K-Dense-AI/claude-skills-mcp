@@ -139,4 +139,3 @@ class StateManager:
         """Clear all state."""
         self.state = {}
         self.save_state()
-

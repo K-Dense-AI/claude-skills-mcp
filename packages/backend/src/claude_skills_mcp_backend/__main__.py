@@ -10,7 +10,7 @@ from .config import get_example_config
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments.
-    
+
     Returns
     -------
     argparse.Namespace
@@ -82,10 +82,7 @@ async def main_async() -> None:
 
     # Run the HTTP server
     await run_server(
-        host=args.host,
-        port=args.port,
-        config_path=args.config,
-        verbose=args.verbose
+        host=args.host, port=args.port, config_path=args.config, verbose=args.verbose
     )
 
 
@@ -103,4 +100,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -114,13 +114,13 @@ TOOL_SCHEMAS = [
 
 class MCPProxy:
     """MCP Proxy that acts as stdio server and HTTP client.
-    
+
     This lightweight proxy:
     1. Starts instantly (<5s) with minimal dependencies
     2. Returns hardcoded tools immediately (no backend needed)
     3. Spawns backend in background (non-blocking)
     4. Proxies tool calls to backend once ready
-    
+
     Attributes
     ----------
     server : Server
@@ -134,10 +134,10 @@ class MCPProxy:
     backend_args : list[str]
         CLI arguments to forward to backend.
     """
-    
+
     def __init__(self, backend_args: list[str]):
         """Initialize the proxy.
-        
+
         Parameters
         ----------
         backend_args : list[str]
@@ -149,12 +149,12 @@ class MCPProxy:
         self.backend_ready = False
         self.backend_args = backend_args
         self._backend_task: Optional[asyncio.Task] = None
-        
+
         logger.info("MCP Proxy initialized")
-    
+
     async def start(self) -> None:
         """Start the proxy server.
-        
+
         This method:
         1. Registers MCP handlers (with hardcoded tools)
         2. Spawns backend in background
@@ -162,10 +162,10 @@ class MCPProxy:
         """
         # Register handlers before starting
         self._register_handlers()
-        
+
         # Start backend in background (NON-BLOCKING!)
         self._backend_task = asyncio.create_task(self._start_backend_async())
-        
+
         # Run stdio MCP server (this blocks until Cursor disconnects)
         logger.info("Starting MCP proxy server with stdio transport")
         async with stdio_server() as (read_stream, write_stream):
@@ -173,26 +173,26 @@ class MCPProxy:
                 await self.server.run(
                     read_stream,
                     write_stream,
-                    self.server.create_initialization_options()
+                    self.server.create_initialization_options(),
                 )
             finally:
                 # Cleanup on exit
                 await self._cleanup()
-    
+
     def _register_handlers(self) -> None:
         """Register MCP tool handlers."""
-        
+
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
             """List available tools - returns hardcoded schemas INSTANTLY."""
             logger.debug("list_tools called - returning hardcoded tools")
             return TOOL_SCHEMAS
-        
+
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Handle tool calls - proxy to backend."""
             logger.info(f"call_tool: {name}")
-            
+
             # Check if backend is ready
             if not self.backend_ready:
                 # Backend still loading - show progress
@@ -206,10 +206,10 @@ class MCPProxy:
                             "This happens only on first run and takes 30-120 seconds.\n\n"
                             "Please wait a moment and try again.\n\n"
                             "Future requests will be instant once the backend is ready!"
-                        )
+                        ),
                     )
                 ]
-            
+
             # Backend ready - forward the request
             logger.info(f"Forwarding {name} to backend")
             try:
@@ -221,13 +221,13 @@ class MCPProxy:
                 return [
                     TextContent(
                         type="text",
-                        text=f"Error communicating with backend: {e}\n\nPlease try again."
+                        text=f"Error communicating with backend: {e}\n\nPlease try again.",
                     )
                 ]
-    
+
     async def _start_backend_async(self) -> None:
         """Start backend in background (non-blocking).
-        
+
         This method:
         1. Checks if backend is installed
         2. Installs if needed (uv pip install)
@@ -237,25 +237,27 @@ class MCPProxy:
         """
         try:
             logger.info("Starting backend initialization...")
-            
+
             # Ensure backend is running
-            backend_url = await self.backend_manager.ensure_backend_running(self.backend_args)
-            
+            backend_url = await self.backend_manager.ensure_backend_running(
+                self.backend_args
+            )
+
             # Connect to backend via streamable HTTP
             logger.info(f"Connecting to backend at {backend_url}")
             await self._connect_to_backend(backend_url)
-            
+
             self.backend_ready = True
             logger.info("Backend ready and connected!")
-            
+
         except Exception as e:
             logger.error(f"Failed to start backend: {e}", exc_info=True)
             # Backend failed but proxy still runs
             # Users will see error message when they try to use tools
-    
+
     async def _connect_to_backend(self, url: str) -> None:
         """Connect to backend via MCP streamable HTTP client.
-        
+
         Parameters
         ----------
         url : str
@@ -265,19 +267,19 @@ class MCPProxy:
             # Create streamable HTTP client
             async with streamablehttp_client(url) as (read, write):
                 self.backend_client = ClientSession(read, write)
-                
+
                 # Initialize the client session
                 result = await self.backend_client.initialize()
                 logger.info(f"Backend client initialized: {result}")
-                
+
         except Exception as e:
             logger.error(f"Failed to connect to backend: {e}")
             raise
-    
+
     async def _cleanup(self) -> None:
         """Cleanup resources on shutdown."""
         logger.info("Cleaning up proxy...")
-        
+
         # Close backend client
         if self.backend_client:
             try:
@@ -286,10 +288,10 @@ class MCPProxy:
                 pass
             except Exception as e:
                 logger.warning(f"Error closing backend client: {e}")
-        
+
         # Terminate backend process
         self.backend_manager.cleanup()
-        
+
         # Cancel backend task
         if self._backend_task and not self._backend_task.done():
             self._backend_task.cancel()
@@ -297,6 +299,5 @@ class MCPProxy:
                 await self._backend_task
             except asyncio.CancelledError:
                 pass
-        
-        logger.info("Cleanup complete")
 
+        logger.info("Cleanup complete")

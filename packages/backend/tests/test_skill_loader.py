@@ -2,7 +2,11 @@
 
 import pytest
 
-from claude_skills_mcp_backend.skill_loader import parse_skill_md, load_from_local, Skill
+from claude_skills_mcp_backend.skill_loader import (
+    parse_skill_md,
+    load_from_local,
+    Skill,
+)
 
 
 def test_parse_skill_md_valid(sample_skill_md):

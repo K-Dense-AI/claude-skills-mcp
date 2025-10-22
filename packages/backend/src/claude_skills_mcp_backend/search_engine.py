@@ -37,7 +37,9 @@ class SkillSearchEngine:
         model_name : str
             Name of the sentence-transformers model to use.
         """
-        logger.info(f"Search engine initialized (model: {model_name}, lazy-loading enabled)")
+        logger.info(
+            f"Search engine initialized (model: {model_name}, lazy-loading enabled)"
+        )
         self.model: SentenceTransformer | None = None
         self.model_name = model_name
         self.skills: list[Skill] = []

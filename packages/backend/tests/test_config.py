@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from claude_skills_mcp_backend.config import load_config, get_example_config, DEFAULT_CONFIG
+from claude_skills_mcp_backend.config import (
+    load_config,
+    get_example_config,
+    DEFAULT_CONFIG,
+)
 
 
 def test_load_default_config():

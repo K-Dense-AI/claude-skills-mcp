@@ -857,7 +857,10 @@ def test_update_detection():
     print("\n[2] Checking for updates (first check)...")
     sources = [
         {"type": "github", "url": "https://github.com/anthropics/skills"},
-        {"type": "github", "url": "https://github.com/K-Dense-AI/claude-scientific-skills"},
+        {
+            "type": "github",
+            "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
+        },
     ]
 
     result = checker.check_for_updates(sources)
@@ -869,7 +872,9 @@ def test_update_detection():
 
     # First check should not trigger updates (establishes baseline)
     assert result.has_updates is False, "First check should not trigger updates"
-    assert len(result.changed_sources) == 0, "First check should have no changed sources"
+    assert len(result.changed_sources) == 0, (
+        "First check should have no changed sources"
+    )
 
     # Should have made API calls to check commits
     assert result.api_calls_made > 0, "Should have made GitHub API calls"

@@ -1,17 +1,12 @@
 """Tests for update checker functionality."""
 
-import json
-from pathlib import Path
 from unittest.mock import Mock, patch
 
-import httpx
-import pytest
 
 from claude_skills_mcp_backend.update_checker import (
     GitHubSourceTracker,
     LocalSourceTracker,
     UpdateChecker,
-    UpdateResult,
 )
 
 
@@ -174,6 +169,7 @@ class TestLocalSourceTracker:
 
         # Modify the file
         import time
+
         time.sleep(0.01)  # Ensure mtime changes
         skill_file.write_text("modified content")
 
@@ -214,11 +210,11 @@ class TestUpdateChecker:
         (skill_dir / "SKILL.md").write_text("content")
 
         checker = UpdateChecker()
-        
+
         # Clear any existing state to ensure clean test
         checker.github_tracker.state_manager.clear()
         checker.local_tracker.state_manager.clear()
-        
+
         sources = [
             {"type": "github", "url": "https://github.com/owner/repo"},
             {"type": "local", "path": str(tmp_path)},
@@ -239,4 +235,3 @@ class TestUpdateChecker:
         assert "calls_this_hour" in usage
         assert "limit_per_hour" in usage
         assert "authenticated" in usage
-
