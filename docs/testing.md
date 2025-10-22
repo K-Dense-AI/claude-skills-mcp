@@ -4,32 +4,30 @@ This guide provides comprehensive testing instructions beyond the Quick Start in
 
 ## Test Suite Overview
 
-**40 tests total:**
-- 9 configuration tests
-- 12 skill loading tests  
-- 11 search engine tests
-- 4 GitHub URL parsing tests
-- 4 integration tests (includes local + repo demos)
+The test suite covers unit tests, integration tests, and end-to-end workflows across both frontend and backend packages.
 
 ## Running Tests
 
 ### Quick Commands
 
 ```bash
-# All tests (with coverage)
+# Backend tests
+cd packages/backend
 uv run pytest tests/
 
-# Unit tests only (fast, ~20s)
-uv run pytest tests/ -m "not integration"
+# Frontend tests  
+cd packages/frontend
+uv run pytest tests/
 
-# Integration tests only (requires internet)
-uv run pytest tests/ -m "integration"
+# Integration tests (from repo root)
+uv run pytest tests/integration/
+
+# Unit tests only (fast)
+cd packages/backend
+uv run pytest tests/ -m "not integration"
 
 # Specific test file
 uv run pytest tests/test_search_engine.py -v
-
-# Specific test
-uv run pytest tests/test_integration.py::test_local_demo -v -s
 ```
 
 ## Integration Test Demos
@@ -39,7 +37,8 @@ uv run pytest tests/test_integration.py::test_local_demo -v -s
 Demonstrates creating temporary local skills and performing semantic search:
 
 ```bash
-pytest tests/test_integration.py::test_local_demo -v -s
+cd packages/backend
+uv run pytest tests/test_integration.py::test_local_demo -v -s
 ```
 
 **What it does:**
@@ -59,7 +58,8 @@ pytest tests/test_integration.py::test_local_demo -v -s
 Demonstrates loading real skills from K-Dense AI repository:
 
 ```bash
-pytest tests/test_integration.py::test_repo_demo -v -s
+cd packages/backend
+uv run pytest tests/test_integration.py::test_repo_demo -v -s
 ```
 
 **What it does:**
@@ -167,35 +167,29 @@ End-to-end workflow tests:
 
 ## Coverage Analysis
 
-### Current Coverage: 56%
+Coverage reporting is enabled by default for backend tests.
 
-Coverage is **enabled by default**. Every test run shows statistics.
-
-**Module breakdown:**
-- `__init__.py`: 100% ✅
-- `search_engine.py`: 100% ✅
-- `config.py`: 86% ✅
-- `skill_loader.py`: 68% ⚠️ (GitHub loading in integration tests)
-- `server.py`: 0% (MCP runtime, tested end-to-end)
-- `__main__.py`: 0% (CLI entry, tested end-to-end)
+**Backend module coverage:**
+- `search_engine.py`: High coverage
+- `config.py`: High coverage
+- `skill_loader.py`: Good coverage (GitHub loading in integration tests)
+- `mcp_handlers.py`: Tested end-to-end
+- `http_server.py`: Tested via integration tests
 
 ### Generate Coverage Reports
 
 **Terminal report** (default):
 ```bash
+cd packages/backend
 uv run pytest tests/
 # Shows coverage automatically
 ```
 
 **HTML report** (interactive):
 ```bash
+cd packages/backend
 uv run pytest tests/ --cov-report=html
 open htmlcov/index.html
-```
-
-**Disable coverage** (faster for development):
-```bash
-uv run pytest tests/ --no-cov
 ```
 
 ### Coverage Tips
@@ -214,20 +208,20 @@ GitHub Actions runs automatically on all PRs to `main`:
 **Workflow** (`.github/workflows/test.yml`):
 - Runs on: Pull requests and pushes to main
 - Python version: 3.12 (enforced)
-- Unit tests with coverage
+- Separate jobs for backend and frontend testing
 - Integration tests
 - Build verification
 
-View CI results at: `https://github.com/K-Dense-AI/claude-skills-mcp/actions`
+View CI results at: [GitHub Actions](https://github.com/K-Dense-AI/claude-skills-mcp/actions)
 
 ## Writing New Tests
 
 ### Adding a Unit Test
 
 ```python
-# tests/test_mymodule.py
+# packages/backend/tests/test_mymodule.py
 import pytest
-from src.claude_skills_mcp.mymodule import my_function
+from claude_skills_mcp_backend.mymodule import my_function
 
 def test_my_function():
     """Test my function with valid input."""

@@ -12,7 +12,9 @@ A Model Context Protocol (MCP) server that provides intelligent search capabilit
 
 **An open-source project by [K-Dense AI](https://k-dense.ai)** - creators of autonomous AI scientists for scientific research.
 
-This MCP server enables any MCP-compatible AI assistant to intelligently search and retrieve skills from our curated [Claude Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository and other skill sources like the [Official Claude Skills](https://github.com/anthropics/skills). If you want substantially more advanced capabilities, compute infrastructure, and enterprise-ready AI scientist offerings, check out [K-Dense AI's commercial platform](https://k-dense.ai/).
+This MCP server enables any MCP-compatible AI assistant to intelligently search and retrieve skills from our curated [Claude Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository and other skill sources like the [Official Claude Skills](https://github.com/anthropics/skills).
+
+**[Add to Cursor via Cursor Directory →](https://cursor.directory/mcp/claude-skills-mcp)**
 
 ## Demo
 
@@ -20,40 +22,47 @@ This MCP server enables any MCP-compatible AI assistant to intelligently search 
 
 *Semantic search and progressive loading of Claude Agent Skills in Cursor*
 
-## Features
+## Highlights
 
-- 🔍 **Semantic Search**: Vector embeddings for intelligent skill discovery
-- 📚 **Progressive Disclosure**: Multi-level skill loading (metadata → full content → files)
-- 🚀 **Zero Configuration**: Works out of the box with curated skills
-- 🌐 **Multi-Source**: Load from GitHub repositories and local directories
-- ⚡ **Fast & Local**: No API keys needed, with automatic GitHub caching
-- 🔧 **Configurable**: Customize sources, models, and content limits
+- **Two-Package Architecture**: Lightweight frontend (~15 MB) starts instantly; backend (~250 MB) downloads in background
+- **No Cursor Timeout**: Frontend responds in <5 seconds, solving the timeout issue
+- **Semantic Search**: Vector embeddings for intelligent skill discovery
+- **Progressive Disclosure**: Multi-level skill loading (metadata → full content → files)
+- **Zero Configuration**: Works out of the box with curated skills
+- **Multi-Source**: Load from GitHub repositories and local directories
+- **Fast & Local**: No API keys needed, with automatic GitHub caching
+- **Configurable**: Customize sources, models, and content limits
 
 ## Quick Start
 
 ### For Cursor Users
 
-Install with one command (handles everything automatically):
+Add through the [Cursor Directory](https://cursor.directory/mcp/claude-skills-mcp), or add to your Cursor config (`~/.cursor/mcp.json`):
 
-```bash
-curl -sSL https://raw.githubusercontent.com/K-Dense-AI/claude-skills-mcp/main/setup-cursor.sh | bash
+```json
+{
+  "mcpServers": {
+    "claude-skills": {
+      "command": "uvx",
+      "args": ["claude-skills-mcp"]
+    }
+  }
+}
 ```
 
-Then restart Cursor. See [Setup Instructions](#cursor-recommended) for details.
+The frontend starts instantly and displays tools, automatically downloading and starting the backend in the background (~60-120s due to RAG dependencies, one-time). Subsequent uses are instant.
 
 ### Using uvx (Standalone)
 
-Run the server with default configuration (no installation required):
+Run the server with default configuration:
 
 ```bash
 uvx claude-skills-mcp
 ```
 
-This loads ~90 skills from Anthropic's official skills repository and K-Dense AI's scientific skills collection.
+This starts the lightweight frontend which auto-downloads the backend and loads ~90 skills from Anthropic's official skills repository and K-Dense AI's scientific skills collection.
 
 ### With Custom Configuration
-
-To customize skill sources or search parameters:
 
 ```bash
 # 1. Print the default configuration
@@ -65,146 +74,13 @@ uvx claude-skills-mcp --example-config > config.json
 uvx claude-skills-mcp --config config.json
 ```
 
-## Setup for Your AI Assistant
+## Documentation
 
-### Cursor (Recommended)
-
-**⚠️ Important**: To avoid startup timeout issues, run our one-line setup script **before** configuring Cursor.
-
-#### Quick Install (One Command)
-
-```bash
-curl -sSL https://raw.githubusercontent.com/K-Dense-AI/claude-skills-mcp/main/setup-cursor.sh | bash
-```
-
-This script will:
-- ✅ Install `uv` if needed (no root/sudo required)
-- ✅ Pre-download all dependencies (~250 MB, one-time)
-- ✅ Auto-configure Cursor's MCP settings
-- ✅ Takes 60-120 seconds on first run
-
-**Then restart Cursor** and you're done! 🎉
-
-The script is **completely safe**:
-- No root access required
-- Installs only to your home directory (`~/.cargo`, `~/.cache`, `~/.cursor`)
-- Creates backups of existing configurations
-- [View source code](https://github.com/K-Dense-AI/claude-skills-mcp/blob/main/setup-cursor.sh)
-
----
-
-**Alternative: Cursor Directory (Visual Setup)**
-
-You can also add this MCP server through Cursor's UI:
-
-1. Visit [Claude Skills MCP on Cursor Directory](https://cursor.directory/mcp/claude-skills-mcp)
-2. Click "Add MCP server to Cursor"
-3. **Important**: Run the pre-cache command first to avoid timeouts:
-   ```bash
-   uvx claude-skills-mcp --help
-   ```
-
----
-
-<details>
-<summary>Manual Configuration (Advanced)</summary>
-
-If you prefer to configure manually:
-
-**Step 1: Pre-cache dependencies** (critical to avoid timeout):
-```bash
-uvx claude-skills-mcp --help
-```
-Wait for it to complete (~60-120 seconds).
-
-**Step 2: Add to Cursor's MCP settings** (`~/.cursor/mcp.json`):
-```json
-{
-  "mcpServers": {
-    "claude-skills": {
-      "command": "uvx",
-      "args": ["claude-skills-mcp"]
-    }
-  }
-}
-```
-
-**Step 3: Restart Cursor**
-
-Your configuration will use `uvx` which auto-updates the server when new versions are released.
-</details>
-
-### Claude Desktop
-
-Add to your MCP settings:
-
-```json
-{
-  "mcpServers": {
-    "claude-skills": {
-      "command": "uvx",
-      "args": ["claude-skills-mcp"]
-    }
-  }
-}
-```
-
-Restart Claude Desktop to activate.
-
-### Other MCP-Compatible Tools
-
-Any tool supporting the Model Context Protocol can use this server via `uvx claude-skills-mcp`. Consult your tool's MCP configuration documentation.
-
-## Architecture
-
-Built on five core components: Configuration (JSON-based config loading), Skill Loader (GitHub + local with automatic caching), Search Engine (sentence-transformers vector search), MCP Server (three tools with stdio transport), and CLI Entry Point (argument parsing and lifecycle management).
-
-See [Architecture Guide](docs/architecture.md) for detailed design, data flow, and extension points.
-
-## Configuration
-
-The server uses a JSON configuration file to specify skill sources and search parameters.
-
-### Default Configuration
-
-If no config file is specified, the server uses these defaults:
-
-```json
-{
-  "skill_sources": [
-    {
-      "type": "github",
-      "url": "https://github.com/anthropics/skills"
-    },
-    {
-      "type": "github",
-      "url": "https://github.com/K-Dense-AI/claude-scientific-skills"
-    },
-    {
-      "type": "local",
-      "path": "~/.claude/skills"
-    }
-  ],
-  "embedding_model": "all-MiniLM-L6-v2",
-  "default_top_k": 3,
-  "max_skill_content_chars": null
-}
-```
-
-This loads ~90 skills by default: 15 from Anthropic (document tools, web artifacts, etc.) + 78 from K-Dense AI (scientific analysis tools) + any custom local skills.
-
-### Configuration Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `skill_sources` | Array | Anthropic repo | GitHub repos or local paths |
-| `embedding_model` | String | `all-MiniLM-L6-v2` | Sentence-transformers model |
-| `default_top_k` | Integer | `3` | Number of results to return |
-| `max_skill_content_chars` | Integer/null | `null` | Content truncation limit |
-| `load_skill_documents` | Boolean | `true` | Load additional skill files |
-| `max_image_size_bytes` | Integer | `5242880` | Max image size (5MB) |
-
-To customize, run `uvx claude-skills-mcp --example-config > config.json` to see all options, or check [Usage Guide](docs/usage.md) for advanced patterns.
+- **[Getting Started](docs/getting-started.md)** - Installation, Cursor setup, CLI usage, and troubleshooting
+- **[Architecture Guide](docs/architecture.md)** - Two-package design, data flow, and components
+- **[API Documentation](docs/api.md)** - Tool parameters, examples, and best practices
+- **[Usage Examples](docs/usage.md)** - Advanced configuration, real-world use cases, and custom skill creation
+- **[Testing Guide](docs/testing.md)** - Complete testing instructions, CI/CD, and coverage analysis
 
 ## MCP Tools
 
@@ -216,65 +92,27 @@ The server provides three tools for working with Claude Agent Skills:
 
 See [API Documentation](docs/api.md) for detailed parameters, examples, and best practices.
 
-### Quick Examples
+## Architecture (v1.0.0)
 
-**Find skills:** "I need to analyze RNA sequencing data"  
-**Access files:** "Show me Python scripts from the scanpy skill"  
-**List all:** "What skills are available?"
+The system uses a **two-package architecture** for optimal performance:
 
-For task-oriented queries, prefer `search_skills` over `list_skills`.
+- **Frontend** ([`claude-skills-mcp`](https://pypi.org/project/claude-skills-mcp/)): Lightweight proxy (~15 MB)
+  - Starts instantly (<5 seconds) ✅ **No Cursor timeout!**
+  - Auto-downloads backend on first use
+  - MCP server (stdio) for Cursor
+  
+- **Backend** ([`claude-skills-mcp-backend`](https://pypi.org/project/claude-skills-mcp-backend/)): Heavy server (~250 MB)
+  - Vector search with PyTorch & sentence-transformers
+  - MCP server (streamable HTTP)
+  - Auto-installed by frontend OR deployable standalone
 
-## Skill Format
+**Benefits:**
+- ✅ Solves Cursor timeout issue (frontend starts instantly)
+- ✅ Same simple user experience (`uvx claude-skills-mcp`)
+- ✅ Backend downloads in background (doesn't block Cursor)
+- ✅ Can connect to remote hosted backend (no local install needed)
 
-The server searches for `SKILL.md` files with the following format:
-
-```markdown
----
-name: Skill Name
-description: Brief description of what this skill does
----
-
-# Skill Name
-
-[Full skill content in Markdown...]
-```
-
-## Technical Details
-
-### Dependencies
-
-- `mcp>=1.0.0` - Model Context Protocol
-- `sentence-transformers>=2.2.0` - Vector embeddings (uses CPU-only PyTorch on Linux)
-- `numpy>=1.24.0` - Numerical operations
-- `httpx>=0.24.0` - HTTP client for GitHub API
-
-**Note on PyTorch**: This project uses CPU-only PyTorch on Linux systems to avoid unnecessary CUDA dependencies (~3-4 GB). This significantly reduces Docker image size and build time while maintaining full functionality for semantic search.
-
-### Python Version
-
-- Requires: **Python 3.12** (not 3.13)
-- Dependencies are automatically managed by uv/uvx
-
-### Performance
-
-- **Startup time**: ~10-20 seconds (loads SKILL.md files only with lazy document loading)
-- **Query time**: <1 second for vector search
-- **Document access**: On-demand with automatic disk caching
-- **Memory usage**: ~500MB (embedding model + indexed skills)
-- **First run**: Downloads ~100MB embedding model (cached thereafter)
-- **Docker image size**: ~1-2 GB (uses CPU-only PyTorch, no CUDA dependencies)
-
-## How It Works
-
-This server implements Anthropic's **progressive disclosure** architecture:
-
-1. **Startup**: Load SKILL.md files from GitHub/local sources, generate vector embeddings
-2. **Search**: Match task queries against skill descriptions using cosine similarity  
-3. **Progressive Loading**: Return metadata → full content → referenced files as needed
-4. **Lazy Document Loading**: Additional skill documents fetched on-demand with automatic disk caching
-5. **Two-Level Caching**: GitHub API responses (24h) + individual documents (permanent)
-
-This enables any MCP-compatible AI assistant to intelligently discover and load relevant skills with minimal context overhead and fast startup. See [Architecture Guide](docs/architecture.md) for details.
+See [Architecture Guide](docs/architecture.md) for detailed design and data flow.
 
 ## Skill Sources
 
@@ -284,129 +122,6 @@ By default, loads from:
 - [Official Anthropic Skills](https://github.com/anthropics/skills) - 15 diverse skills for documents, presentations, web artifacts, and more
 - [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 78+ specialized skills for bioinformatics, cheminformatics, and scientific analysis
 - Local directory `~/.claude/skills` (if it exists)
-
-## Error Handling
-
-The server is designed to be resilient:
-- If a local folder is inaccessible, it logs a warning and continues
-- If a GitHub repo fails to load, it tries alternate branches and continues
-- If no skills are loaded, the server exits with an error message
-
-## Troubleshooting
-
-### Cursor Startup Timeout
-
-**Problem**: Cursor shows "MCP server failed to start" or timeout errors.
-
-**Solution**: Run the setup script before configuring Cursor:
-```bash
-curl -sSL https://raw.githubusercontent.com/K-Dense-AI/claude-skills-mcp/main/setup-cursor.sh | bash
-```
-
-This pre-downloads all dependencies (~250 MB) so Cursor can start the server quickly (5-10 seconds).
-
-**Why this happens**: On first run, `uvx` needs to download dependencies including PyTorch (~150 MB) and sentence-transformers (~50 MB), which can take 60-180 seconds and exceed Cursor's startup timeout.
-
-### Manual Pre-Caching
-
-If you prefer not to use the setup script, you can manually pre-cache:
-
-```bash
-uvx claude-skills-mcp --help
-```
-
-Wait for it to complete (~60-120 seconds), then configure Cursor normally.
-
-### Slow First Search
-
-**Expected behavior**: The first search after server startup takes 3-5 seconds to load the embedding model (~100 MB download, one-time).
-
-This is normal and only happens once. The model is cached permanently at `~/.cache/huggingface/`.
-
-### Skills Not Loading
-
-**Problem**: Search returns no results or "No skills loaded".
-
-**Check**:
-1. Network connectivity (for GitHub sources)
-2. GitHub API rate limits (60 requests/hour without token)
-3. Verbose logs: `uvx claude-skills-mcp --verbose`
-
-**Solution**: Use local skills or wait for rate limit reset.
-
-## Docker Deployment
-
-### Building Docker Image
-
-```bash
-docker build -t claude-skills-mcp -f Dockerfile.glama .
-```
-
-### Running with Docker
-
-```bash
-docker run -it claude-skills-mcp
-```
-
-The optimized Dockerfile uses CPU-only PyTorch to minimize image size and build time while maintaining full functionality.
-
-## Development
-
-### Installation from Source
-
-```bash
-git clone https://github.com/your-org/claude-skills-mcp.git
-cd claude-skills-mcp
-uv sync
-```
-
-### Running in Development
-
-```bash
-uv run claude-skills-mcp
-```
-
-### Running with Verbose Logging
-
-```bash
-uvx claude-skills-mcp --verbose
-```
-
-### Running Tests
-
-```bash
-# Run all tests (with coverage - runs automatically)
-uv run pytest tests/
-
-# Run only unit tests (fast)
-uv run pytest tests/ -m "not integration"
-
-# Run local demo (creates temporary skills)
-uv run pytest tests/test_integration.py::test_local_demo -v -s
-
-# Run repository demo (loads from K-Dense-AI scientific skills)
-uv run pytest tests/test_integration.py::test_repo_demo -v -s
-
-# Generate HTML coverage report
-uv run pytest tests/ --cov-report=html
-open htmlcov/index.html
-```
-
-**Note**: Coverage reporting is enabled by default. All test runs show coverage statistics.
-
-See [Testing Guide](docs/testing.md) for more details.
-
-## Command Line Options
-
-```
-uvx claude-skills-mcp [OPTIONS]
-
-Options:
-  --config PATH         Path to configuration JSON file
-  --example-config      Print default configuration (with comments) and exit
-  --verbose, -v         Enable verbose logging
-  --help               Show help message
-```
 
 ## Contributing
 
@@ -418,16 +133,6 @@ Contributions are welcome! To contribute:
 4. **Add tests**: New features should include tests
 
 For questions, email [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai)
-
-## Documentation
-
-- [Usage Examples](docs/usage.md) - Advanced configuration, real-world use cases, and custom skill creation
-- [Testing Guide](docs/testing.md) - Complete testing instructions, CI/CD, and coverage analysis
-- [Roadmap](docs/roadmap.md) - Future features and planned enhancements
-
-## Roadmap
-
-We're working on MCP Sampling, sandboxed execution, binary support, and skill workflows. See our [detailed roadmap](docs/roadmap.md) for technical specifications.
 
 ## Learn More
 

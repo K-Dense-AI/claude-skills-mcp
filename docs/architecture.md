@@ -1,10 +1,15 @@
 # Architecture Guide
 
-This document provides detailed information about the internal architecture of the Claude Skills MCP Server.
+This document describes the internal architecture of the Claude Skills MCP Server v1.0.0, which uses a two-package design to solve the Cursor timeout issue while maintaining simple user experience.
 
 ## Overview
 
-The server consists of five core components working together to provide intelligent skill discovery through the Model Context Protocol.
+The v1.0.0 system uses a **frontend-backend architecture** with two separate packages:
+
+- **Frontend** (`claude-skills-mcp`): Lightweight MCP proxy that starts instantly
+- **Backend** (`claude-skills-mcp-backend`): Heavy server with vector search and skill loading
+
+The backend consists of seven core components working together to provide intelligent skill discovery through the Model Context Protocol.
 
 ## Core Components
 
@@ -153,9 +158,9 @@ Query:
 - **all-mpnet-base-v2**: Higher quality, slower, 768 dimensions (optional)
 - Models are cached after first download
 
-### 4. MCP Server (`server.py`)
+### 4. MCP Handlers (`mcp_handlers.py`) and HTTP Server (`http_server.py`)
 
-**Purpose**: Implement the Model Context Protocol specification.
+**Purpose**: Implement the Model Context Protocol specification over Streamable HTTP.
 
 **Key Features**:
 - **Standard MCP protocol** implementation
@@ -169,27 +174,32 @@ Query:
   - Full content (when relevant)
   - Referenced files (on demand)
 - **Content truncation** (configurable)
-- **Stdio transport** for easy integration
+- **Streamable HTTP transport** for remote access
+- **Frontend Proxy** (`mcp_proxy.py`, `backend_manager.py`):
+  - Stdio MCP server for Cursor
+  - HTTP MCP client for backend
+  - Backend process management
+  - Auto-downloads backend via `uvx`
 - **Formatted output** with:
   - Relevance scores
   - Source links
   - Document metadata
 
-**Tool Invocation Flow**:
+**Tool Invocation Flow (v1.0.0)**:
 ```
-AI Assistant
+AI Assistant (e.g., Cursor)
     ↓
-MCP Client
+Frontend Proxy (stdio MCP server)
     ↓
-Tool Call (search_skills, read_skill_document, list_skills)
+HTTP Client → Backend (streamable HTTP MCP server)
     ↓
-Server Handler
+MCP Handler (search_skills, read_skill_document, list_skills)
     ↓
 Search Engine / Skill Loader
     ↓
 Format Response
     ↓
-Return to AI Assistant
+Frontend Proxy → AI Assistant
 ```
 
 **Progressive Disclosure Implementation**:
@@ -231,16 +241,94 @@ Load configuration
     ↓
 Initialize skill loader
     ↓
-Load skills from sources
+Load skills from sources (background thread)
     ↓
 Initialize search engine
     ↓
-Index skills
+Index skills (incremental)
+    ↓
+Initialize auto-update system (if enabled)
     ↓
 Start MCP server
     ↓
 Listen for tool calls
 ```
+
+### 6. Auto-Update System (`update_checker.py`, `scheduler.py`, `state_manager.py`)
+
+**Purpose**: Automatically detect and reload skills when remote or local sources change.
+
+**Key Features**:
+- **Hourly scheduling** synchronized to exact clockface hours (e.g., 12:00, 13:00)
+- **Efficient change detection**:
+  - GitHub: Commit SHA comparison (1 API call per repo)
+  - Local: File modification time tracking
+- **State persistence** survives server restarts
+- **API rate limit awareness** (60 req/hr unauthenticated, 5000 with token)
+- **Graceful error handling** with retry on next cycle
+
+**Components**:
+
+**UpdateChecker**:
+- Orchestrates update checking across all sources
+- Tracks API usage and warns when approaching limits
+- Returns list of changed sources for selective reloading
+
+**GitHubSourceTracker**:
+- Checks HEAD commit SHA via GitHub API
+- Compares against last known SHA from persistent state
+- Only triggers update if SHA has changed
+- Respects rate limits and tracks usage
+
+**LocalSourceTracker**:
+- Scans for `SKILL.md` files in configured directories
+- Tracks modification times of all skill files
+- Detects new, modified, or deleted files
+
+**HourlyScheduler**:
+- Calculates time until next exact hour on startup
+- Runs update checks at configured intervals (default: 60 min)
+- Aligns to clockface hours for predictable scheduling
+- Handles cancellation and errors gracefully
+
+**StateManager**:
+- Persists commit SHAs and modification times to disk
+- Cache location: `/tmp/claude_skills_mcp_cache/state/`
+- Prevents false positives on first check after restart
+
+**Update Flow**:
+```
+Hourly Scheduler (wait until :00)
+    ↓
+Check GitHub sources (commit SHA)
+    ↓
+Check local sources (mtime)
+    ↓
+Changes detected?
+    ├─ No → Log and continue
+    └─ Yes → Reload all skills
+               ↓
+           Re-index embeddings
+               ↓
+           Update complete
+```
+
+**Configuration**:
+```json
+{
+  "auto_update_enabled": true,
+  "auto_update_interval_minutes": 60,
+  "github_api_token": null
+}
+```
+
+**API Budget** (default 2 GitHub sources):
+- Commit checks: 2 calls/hour
+- On change: +2 tree API calls = 4 total/hour
+- Remaining: 56 calls/hour for other operations
+- Raw content access: Unlimited (doesn't count against limit)
+
+See [auto-update.md](auto-update.md) for detailed documentation.
 
 ## Data Flow
 
@@ -431,7 +519,7 @@ Total: ~500MB typical, scales linearly with skill count.
 
 ## Testing Strategy
 
-See [Testing Guide](testing.md) for details.
+See [Testing Guide](testing.md) for comprehensive testing instructions.
 
 **Architecture tests**:
 - Unit tests for each component
@@ -476,14 +564,30 @@ Solutions:
 2. Limit number of skill sources
 3. Use subpath filtering to load fewer skills
 
-## Future Architecture Considerations
+## Package Structure (v1.0.0)
 
-See [Roadmap](roadmap.md) for planned features.
+### Frontend Package (`claude-skills-mcp`)
 
-**Potential changes**:
-- **MCP Sampling**: Use LLM reasoning instead of RAG
-- **Skill execution**: Sandboxed Python execution
-- **Binary tools**: Execute scientific software
-- **Distributed skills**: Load from multiple servers
-- **Caching layer**: Redis/disk cache for queries
+**Location**: `packages/frontend/`
+
+**Modules**:
+- `__main__.py`: CLI entry point with argument forwarding
+- `mcp_proxy.py`: MCP stdio server + HTTP client proxy
+- `backend_manager.py`: Backend process lifecycle management
+
+**Dependencies**: `mcp`, `httpx` (~15 MB total)
+
+### Backend Package (`claude-skills-mcp-backend`)
+
+**Location**: `packages/backend/`
+
+**Modules**:
+- `__main__.py`: CLI entry point
+- `http_server.py`: Streamable HTTP server with Starlette/Uvicorn
+- `mcp_handlers.py`: MCP tool implementations
+- `search_engine.py`: Vector search with sentence-transformers
+- `skill_loader.py`: GitHub and local skill loading
+- `config.py`: Configuration management
+
+**Dependencies**: `mcp`, `torch`, `sentence-transformers`, `starlette`, `uvicorn`, `httpx`, `numpy` (~250 MB total)
 

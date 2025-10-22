@@ -576,8 +576,9 @@ When integrating these tools into an AI assistant:
 
 ## Further Reading
 
+- [Getting Started](getting-started.md) - Installation and quick start
+- [Architecture Guide](architecture.md) - System design and components
+- [Usage Examples](usage.md) - Advanced configuration and patterns
 - [MCP Specification](https://modelcontextprotocol.io/specification/)
-- [Usage Examples](usage.md)
-- [Architecture Guide](architecture.md)
 - [Agent Skills Blog](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 
