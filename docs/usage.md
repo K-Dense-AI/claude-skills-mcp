@@ -387,7 +387,7 @@ The server currently has 78 skills loaded from K-Dense-AI/claude-scientific-skil
 - Use local directories instead of GitHub for development
 - The server automatically caches GitHub API responses (see below)
 
-**Automatic Caching (v0.2.0+):**
+**Automatic Caching:**
 
 The server uses two-level caching to minimize GitHub API usage and speed up startup:
 

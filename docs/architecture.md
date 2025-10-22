@@ -1,10 +1,15 @@
 # Architecture Guide
 
-This document provides detailed information about the internal architecture of the Claude Skills MCP Server.
+This document describes the internal architecture of the Claude Skills MCP Server v1.0.0, which uses a two-package design to solve the Cursor timeout issue while maintaining simple user experience.
 
 ## Overview
 
-The server consists of five core components working together to provide intelligent skill discovery through the Model Context Protocol.
+The v1.0.0 system uses a **frontend-backend architecture** with two separate packages:
+
+- **Frontend** (`claude-skills-mcp`): Lightweight MCP proxy that starts instantly
+- **Backend** (`claude-skills-mcp-backend`): Heavy server with vector search and skill loading
+
+The backend consists of five core components working together to provide intelligent skill discovery through the Model Context Protocol.
 
 ## Core Components
 
@@ -153,9 +158,9 @@ Query:
 - **all-mpnet-base-v2**: Higher quality, slower, 768 dimensions (optional)
 - Models are cached after first download
 
-### 4. MCP Server (`server.py`)
+### 4. MCP Handlers (`mcp_handlers.py`) and HTTP Server (`http_server.py`)
 
-**Purpose**: Implement the Model Context Protocol specification.
+**Purpose**: Implement the Model Context Protocol specification over Streamable HTTP.
 
 **Key Features**:
 - **Standard MCP protocol** implementation
@@ -169,27 +174,32 @@ Query:
   - Full content (when relevant)
   - Referenced files (on demand)
 - **Content truncation** (configurable)
-- **Stdio transport** for easy integration
+- **Streamable HTTP transport** for remote access
+- **Frontend Proxy** (`mcp_proxy.py`, `backend_manager.py`):
+  - Stdio MCP server for Cursor
+  - HTTP MCP client for backend
+  - Backend process management
+  - Auto-downloads backend via `uvx`
 - **Formatted output** with:
   - Relevance scores
   - Source links
   - Document metadata
 
-**Tool Invocation Flow**:
+**Tool Invocation Flow (v1.0.0)**:
 ```
-AI Assistant
+AI Assistant (e.g., Cursor)
     ↓
-MCP Client
+Frontend Proxy (stdio MCP server)
     ↓
-Tool Call (search_skills, read_skill_document, list_skills)
+HTTP Client → Backend (streamable HTTP MCP server)
     ↓
-Server Handler
+MCP Handler (search_skills, read_skill_document, list_skills)
     ↓
 Search Engine / Skill Loader
     ↓
 Format Response
     ↓
-Return to AI Assistant
+Frontend Proxy → AI Assistant
 ```
 
 **Progressive Disclosure Implementation**:
@@ -431,7 +441,7 @@ Total: ~500MB typical, scales linearly with skill count.
 
 ## Testing Strategy
 
-See [Testing Guide](testing.md) for details.
+See [Testing Guide](testing.md) for comprehensive testing instructions.
 
 **Architecture tests**:
 - Unit tests for each component
@@ -476,14 +486,30 @@ Solutions:
 2. Limit number of skill sources
 3. Use subpath filtering to load fewer skills
 
-## Future Architecture Considerations
+## Package Structure (v1.0.0)
 
-See [Roadmap](roadmap.md) for planned features.
+### Frontend Package (`claude-skills-mcp`)
 
-**Potential changes**:
-- **MCP Sampling**: Use LLM reasoning instead of RAG
-- **Skill execution**: Sandboxed Python execution
-- **Binary tools**: Execute scientific software
-- **Distributed skills**: Load from multiple servers
-- **Caching layer**: Redis/disk cache for queries
+**Location**: `packages/frontend/`
+
+**Modules**:
+- `__main__.py`: CLI entry point with argument forwarding
+- `mcp_proxy.py`: MCP stdio server + HTTP client proxy
+- `backend_manager.py`: Backend process lifecycle management
+
+**Dependencies**: `mcp`, `httpx` (~15 MB total)
+
+### Backend Package (`claude-skills-mcp-backend`)
+
+**Location**: `packages/backend/`
+
+**Modules**:
+- `__main__.py`: CLI entry point
+- `http_server.py`: Streamable HTTP server with Starlette/Uvicorn
+- `mcp_handlers.py`: MCP tool implementations
+- `search_engine.py`: Vector search with sentence-transformers
+- `skill_loader.py`: GitHub and local skill loading
+- `config.py`: Configuration management
+
+**Dependencies**: `mcp`, `torch`, `sentence-transformers`, `starlette`, `uvicorn`, `httpx`, `numpy` (~250 MB total)
 

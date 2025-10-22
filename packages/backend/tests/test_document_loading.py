@@ -4,7 +4,7 @@ import base64
 from pathlib import Path
 
 
-from claude_skills_mcp.skill_loader import (
+from claude_skills_mcp_backend.skill_loader import (
     Skill,
     _is_text_file,
     _is_image_file,

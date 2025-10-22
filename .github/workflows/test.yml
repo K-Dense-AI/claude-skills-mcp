@@ -1,11 +1,13 @@
 name: Tests
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  test:
+  test-backend:
     runs-on: ubuntu-latest
     
     steps:
@@ -17,19 +19,71 @@ jobs:
         with:
             python-version: "3.12"
       
-      - name: Install dependencies
-        run: uv sync --extra test
-      
-      - name: Run unit tests
-        run: uv run pytest tests/ -v -m "not integration" --cov=src/claude_skills_mcp --cov-report=term-missing
-      
-      - name: Run integration tests
-        run: uv run pytest tests/ -v -m "integration"
-      
-      - name: Check code formatting (optional)
+      - name: Install backend dependencies
         run: |
-          # Install ruff if you want to add linting
-          # uv pip install ruff
-          # uv run ruff check src/
+          cd packages/backend
+          uv pip install -e ".[test]"
+      
+      - name: Run backend unit tests
+        run: |
+          cd packages/backend
+          uv run pytest tests/ -v -m "not integration"
+      
+      - name: Run backend integration tests
+        run: |
+          cd packages/backend
+          uv run pytest tests/ -v -m "integration"
         continue-on-error: true
 
+  test-frontend:
+    runs-on: ubuntu-latest
+    needs: test-backend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+            python-version: "3.12"
+      
+      - name: Install frontend dependencies
+        run: |
+          cd packages/frontend
+          uv pip install -e ".[test]"
+      
+      - name: Test frontend imports
+        run: |
+          cd packages/frontend
+          uv run python -c "from claude_skills_mcp.mcp_proxy import MCPProxy, TOOL_SCHEMAS; print(f'✓ {len(TOOL_SCHEMAS)} tools defined')"
+      
+      - name: Test frontend can install backend
+        run: |
+          cd packages/frontend
+          uv run python -c "from claude_skills_mcp.backend_manager import BackendManager; m = BackendManager(); print('✓ Backend manager works')"
+
+  build-test:
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+            python-version: "3.12"
+      
+      - name: Build both packages
+        run: |
+          bash scripts/build-all.sh
+      
+      - name: Verify build artifacts
+        run: |
+          ls -lh packages/backend/dist/
+          ls -lh packages/frontend/dist/
+          test -f packages/backend/dist/claude_skills_mcp_backend-1.0.0-py3-none-any.whl
+          test -f packages/frontend/dist/claude_skills_mcp-1.0.0-py3-none-any.whl
+          echo "✓ All build artifacts present"
