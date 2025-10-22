@@ -143,7 +143,7 @@ def test_startup_time_improvement():
 @pytest.mark.integration
 def test_lazy_fetching_with_server():
     """Test lazy fetching through the MCP server interface."""
-    from claude_skills_mcp_backend.server import SkillsMCPServer, LoadingState
+    from claude_skills_mcp_backend.mcp_handlers import SkillsMCPServer, LoadingState
     import asyncio
 
     # Load skills (fast - no document content)

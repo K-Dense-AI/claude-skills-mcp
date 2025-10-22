@@ -4,7 +4,7 @@ import asyncio
 import time
 import pytest
 from claude_skills_mcp_backend.search_engine import SkillSearchEngine
-from claude_skills_mcp_backend.server import SkillsMCPServer, LoadingState
+from claude_skills_mcp_backend.mcp_handlers import SkillsMCPServer, LoadingState
 from claude_skills_mcp_backend.skill_loader import load_skills_in_batches, Skill
 
 

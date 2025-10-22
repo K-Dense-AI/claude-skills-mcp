@@ -42,66 +42,26 @@ class BackendManager:
         self.backend_process: Optional[asyncio.subprocess.Process] = None
         self.backend_url: Optional[str] = None
     
-    def is_backend_installed(self) -> bool:
-        """Check if backend package is installed.
+    def check_backend_available(self) -> bool:
+        """Check if backend package is available via uvx.
         
         Returns
         -------
         bool
-            True if backend is installed, False otherwise.
+            True if backend can be run via uvx, False otherwise.
         """
         try:
-            # Try importing the backend package
+            # Check if uvx can find the backend package
             result = subprocess.run(
-                [sys.executable, "-c", "import claude_skills_mcp_backend"],
+                ["uvx", "--help"],
                 capture_output=True,
                 timeout=5
             )
+            # If uvx exists, backend will auto-download on first use
             return result.returncode == 0
         except Exception as e:
-            logger.debug(f"Backend check failed: {e}")
+            logger.debug(f"uvx check failed: {e}")
             return False
-    
-    async def install_backend(self) -> None:
-        """Install backend package from PyPI.
-        
-        This downloads ~250 MB of dependencies including PyTorch and sentence-transformers.
-        """
-        logger.info("Installing claude-skills-mcp-backend (this may take 60-120 seconds)...")
-        print("\n" + "=" * 80, file=sys.stderr)
-        print("Installing claude-skills-mcp-backend...", file=sys.stderr)
-        print("This is a one-time download (~250 MB including PyTorch)", file=sys.stderr)
-        print("Future startups will be much faster!", file=sys.stderr)
-        print("=" * 80 + "\n", file=sys.stderr)
-        
-        try:
-            process = await asyncio.create_subprocess_exec(
-                "uv", "pip", "install", "claude-skills-mcp-backend",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT
-            )
-            
-            # Stream output
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                print(line.decode().rstrip(), file=sys.stderr)
-            
-            await process.wait()
-            
-            if process.returncode != 0:
-                raise RuntimeError(f"Backend installation failed with code {process.returncode}")
-            
-            logger.info("Backend installed successfully")
-            print("\n✓ Backend installed successfully!\n", file=sys.stderr)
-            
-        except Exception as e:
-            logger.error(f"Failed to install backend: {e}")
-            raise RuntimeError(
-                f"Failed to install claude-skills-mcp-backend: {e}\n"
-                "Please check your internet connection and try again."
-            )
     
     async def start_backend(self, backend_args: list[str]) -> str:
         """Start the backend server process via uvx.
@@ -184,7 +144,10 @@ class BackendManager:
             await asyncio.sleep(1)
     
     async def ensure_backend_running(self, backend_args: list[str]) -> str:
-        """Ensure backend is installed and running.
+        """Ensure backend is running via uvx.
+        
+        uvx handles downloading and installing the backend automatically
+        in its own isolated environment. No need for manual installation!
         
         Parameters
         ----------
@@ -196,14 +159,9 @@ class BackendManager:
         str
             Backend URL.
         """
-        # Check if backend is installed
-        if not self.is_backend_installed():
-            logger.info("Backend not installed, installing now...")
-            await self.install_backend()
-        else:
-            logger.info("Backend already installed")
+        logger.info("Starting backend via uvx (auto-downloads if needed)...")
         
-        # Start backend
+        # uvx handles everything - no manual installation needed!
         return await self.start_backend(backend_args)
     
     def cleanup(self) -> None:

@@ -801,7 +801,7 @@ def test_anthropic_specific_skills():
 @pytest.mark.integration
 def test_list_skills_tool():
     """Test that list_skills returns all loaded skills."""
-    from claude_skills_mcp_backend.server import SkillsMCPServer, LoadingState
+    from claude_skills_mcp_backend.mcp_handlers import SkillsMCPServer, LoadingState
     from claude_skills_mcp_backend.skill_loader import load_from_github
     import asyncio
 
