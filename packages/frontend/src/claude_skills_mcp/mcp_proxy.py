@@ -265,7 +265,8 @@ class MCPProxy:
         """
         try:
             # Create streamable HTTP client
-            async with streamablehttp_client(url) as (read, write):
+            # Note: streamablehttp_client yields (read, write, session_handle)
+            async with streamablehttp_client(url) as (read, write, _):
                 self.backend_client = ClientSession(read, write)
 
                 # Initialize the client session

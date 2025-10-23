@@ -10,6 +10,15 @@ echo "Building Claude Skills MCP Packages"
 echo "================================================"
 echo ""
 
+# Sync versions first
+echo "Syncing versions from VERSION file..."
+python3 scripts/sync-version.py
+if [ $? -ne 0 ]; then
+    echo "Error: Version sync failed"
+    exit 1
+fi
+echo ""
+
 # Clean previous builds
 echo "Cleaning previous builds..."
 rm -rf packages/frontend/dist packages/backend/dist
