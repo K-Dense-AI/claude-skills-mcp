@@ -1,6 +1,7 @@
 """MCP Proxy - Acts as both MCP Server (stdio) and MCP Client (HTTP)."""
 
 import asyncio
+import contextlib
 import logging
 from typing import Any, Optional
 
@@ -133,6 +134,8 @@ class MCPProxy:
         Whether backend is ready to handle requests.
     backend_args : list[str]
         CLI arguments to forward to backend.
+    _backend_exit_stack : contextlib.AsyncExitStack | None
+        Context manager for backend connection lifecycle.
     """
 
     def __init__(self, backend_args: list[str]):
@@ -149,6 +152,7 @@ class MCPProxy:
         self.backend_ready = False
         self.backend_args = backend_args
         self._backend_task: Optional[asyncio.Task] = None
+        self._backend_exit_stack: Optional[contextlib.AsyncExitStack] = None
 
         logger.info("MCP Proxy initialized")
 
@@ -264,34 +268,49 @@ class MCPProxy:
             Backend URL (e.g., http://localhost:8765/mcp).
         """
         try:
+            # Use AsyncExitStack to keep the connection alive across method boundaries
+            self._backend_exit_stack = contextlib.AsyncExitStack()
+            
             # Create streamable HTTP client
             # Note: streamablehttp_client yields (read, write, session_handle)
-            async with streamablehttp_client(url) as (read, write, _):
-                self.backend_client = ClientSession(read, write)
+            read, write, _ = await self._backend_exit_stack.enter_async_context(
+                streamablehttp_client(url)
+            )
+            
+            # CRITICAL: ClientSession MUST be used as async context manager!
+            # Enter it into the exit stack to keep it alive
+            logger.info("Creating backend client session...")
+            self.backend_client = await self._backend_exit_stack.enter_async_context(
+                ClientSession(read, write)
+            )
 
-                # Initialize the client session
-                result = await self.backend_client.initialize()
-                logger.info(f"Backend client initialized: {result}")
+            # Initialize the client session
+            logger.info("Initializing backend client session...")
+            await self.backend_client.initialize()
+            logger.info("Backend client initialized successfully")
 
         except Exception as e:
             logger.error(f"Failed to connect to backend: {e}")
+            # Clean up the exit stack if connection failed
+            if self._backend_exit_stack:
+                await self._backend_exit_stack.aclose()
+                self._backend_exit_stack = None
             raise
 
     async def _cleanup(self) -> None:
         """Cleanup resources on shutdown."""
         logger.info("Cleaning up proxy...")
 
-        # Close backend client
-        if self.backend_client:
+        # Close backend connection (via exit stack)
+        if self._backend_exit_stack:
             try:
-                # Note: ClientSession doesn't have explicit close method
-                # It's managed by the context manager
-                pass
+                await self._backend_exit_stack.aclose()
+                logger.info("Backend connection closed")
             except Exception as e:
-                logger.warning(f"Error closing backend client: {e}")
+                logger.warning(f"Error closing backend connection: {e}")
 
-        # Terminate backend process
-        self.backend_manager.cleanup()
+        # Terminate backend process (async now!)
+        await self.backend_manager.cleanup()
 
         # Cancel backend task
         if self._backend_task and not self._backend_task.done():

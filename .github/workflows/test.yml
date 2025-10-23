@@ -84,6 +84,6 @@ jobs:
         run: |
           ls -lh packages/backend/dist/
           ls -lh packages/frontend/dist/
-          test -f packages/backend/dist/claude_skills_mcp_backend-1.0.2-py3-none-any.whl
-          test -f packages/frontend/dist/claude_skills_mcp-1.0.2-py3-none-any.whl
+          test -f packages/backend/dist/claude_skills_mcp_backend-1.0.3-py3-none-any.whl
+          test -f packages/frontend/dist/claude_skills_mcp-1.0.3-py3-none-any.whl
           echo "✓ All build artifacts present"

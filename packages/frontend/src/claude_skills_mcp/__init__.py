@@ -1,3 +1,3 @@
 """Claude Skills MCP Frontend - Lightweight proxy."""
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
