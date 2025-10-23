@@ -132,6 +132,13 @@ Contributions are welcome! To contribute:
 3. **Code style**: Run `uvx ruff check src/` before committing
 4. **Add tests**: New features should include tests
 
+### Development
+
+**Version Management**: This monorepo uses a centralized version system:
+- Edit the `VERSION` file at the repo root to bump the version
+- Run `python3 scripts/sync-version.py` to sync all references (or use `--check` to verify)
+- The `scripts/build-all.sh` script automatically syncs versions before building
+
 For questions, email [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai)
 
 ## Learn More

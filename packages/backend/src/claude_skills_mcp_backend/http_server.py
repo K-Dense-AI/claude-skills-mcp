@@ -1,16 +1,15 @@
-"""HTTP server with MCP Streamable HTTP transport."""
+"""HTTP server with MCP Streamable HTTP transport using FastMCP."""
 
 import logging
 import threading
 from typing import Any
 
+import uvicorn
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
-from starlette.routing import Route
-import uvicorn
-from mcp.server import Server
-from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
-from mcp.types import Tool, TextContent
+from starlette.routing import Route, Mount
+from mcp.server.fastmcp import FastMCP
+from mcp.types import TextContent
 
 from .search_engine import SkillSearchEngine
 from .skill_loader import load_skills_in_batches, load_all_skills
@@ -20,9 +19,10 @@ from .scheduler import HourlyScheduler
 
 logger = logging.getLogger(__name__)
 
+# Create FastMCP server
+mcp = FastMCP("claude-skills-mcp-backend")
+
 # Global state
-mcp_server = Server("claude-skills-mcp-backend")
-session_manager: StreamableHTTPSessionManager | None = None
 search_engine: SkillSearchEngine | None = None
 loading_state_global = None
 update_checker_global: UpdateChecker | None = None
@@ -65,132 +65,78 @@ class LoadingState:
             return f"[LOADING: {self.loaded_skills} skills loaded so far, indexing in progress...]\n"
 
 
-def register_mcp_handlers(default_top_k: int = 3, max_content_chars: int | None = None):
-    """Register MCP tool handlers."""
-
-    @mcp_server.list_tools()
-    async def list_tools() -> list[Tool]:
-        """List available MCP tools."""
-        return [
-            Tool(
-                name="search_skills",
-                title="Claude Agent Skills Search",
-                description=(
-                    "Search and discover proven Claude Agent Skills that provide expert guidance for your tasks. "
-                    "Use this tool whenever you're starting a new task, facing a coding challenge, or need specialized "
-                    "techniques. Returns highly relevant skills with complete implementation guides, code examples, and "
-                    "best practices ranked by relevance. Each result includes detailed step-by-step instructions you can "
-                    "follow immediately. Essential for leveraging battle-tested patterns, avoiding common pitfalls, and "
-                    "accelerating development with proven solutions. Perfect for finding reusable workflows, debugging "
-                    "strategies, API integration patterns, data processing techniques, and domain-specific methodologies."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "task_description": {
-                            "type": "string",
-                            "description": (
-                                "Description of the task you want to accomplish. Be specific about your goal, "
-                                "context, or problem domain for better results (e.g., 'debug Python API errors', "
-                                "'process genomic data', 'build React dashboard')"
-                            ),
-                        },
-                        "top_k": {
-                            "type": "integer",
-                            "description": f"Number of skills to return (default: {default_top_k}). Higher values provide more options but may include less relevant results.",
-                            "default": default_top_k,
-                            "minimum": 1,
-                            "maximum": 20,
-                        },
-                        "list_documents": {
-                            "type": "boolean",
-                            "description": "Include a list of available documents (scripts, references, assets) for each skill (default: True)",
-                            "default": True,
-                        },
-                    },
-                    "required": ["task_description"],
-                },
-            ),
-            Tool(
-                name="read_skill_document",
-                title="Read Skill Document",
-                description=(
-                    "Retrieve specific documents (scripts, references, assets) from a skill. "
-                    "Use this after searching for skills to access additional resources like Python scripts, "
-                    "example data files, reference materials, or images. Supports pattern matching to retrieve "
-                    "multiple files at once (e.g., 'scripts/*.py' for all Python scripts)."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "skill_name": {
-                            "type": "string",
-                            "description": "Name of the skill (as returned by search_skills)",
-                        },
-                        "document_path": {
-                            "type": "string",
-                            "description": (
-                                "Path or pattern to match documents. Examples: 'scripts/example.py', "
-                                "'scripts/*.py', 'references/*', 'assets/diagram.png'. "
-                                "If not provided, returns a list of all available documents."
-                            ),
-                        },
-                        "include_base64": {
-                            "type": "boolean",
-                            "description": (
-                                "For images: if True, return base64-encoded content; if False, return only URL. "
-                                "Default: False (URL only for efficiency)"
-                            ),
-                            "default": False,
-                        },
-                    },
-                    "required": ["skill_name"],
-                },
-            ),
-            Tool(
-                name="list_skills",
-                title="List All Loaded Skills",
-                description=(
-                    "Returns a complete inventory of all loaded skills with their names, descriptions, "
-                    "sources, and document counts. Use this for exploration or debugging to see what "
-                    "skills are available. NOTE: For finding relevant skills for a specific task, use "
-                    "the 'search_skills' tool instead - it performs semantic search to find the most "
-                    "appropriate skills for your needs."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            ),
-        ]
-
-    @mcp_server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-        """Handle tool calls - import handlers from mcp_handlers."""
-        # Import handle functions from mcp_handlers
-        from .mcp_handlers import (
-            handle_search_skills,
-            handle_read_skill_document,
-            handle_list_skills,
+def register_mcp_tools(default_top_k: int = 3, max_content_chars: int | None = None):
+    """Register MCP tools using FastMCP decorators."""
+    
+    # Import handle functions from mcp_handlers
+    from .mcp_handlers import (
+        handle_search_skills,
+        handle_read_skill_document,
+        handle_list_skills,
+    )
+    
+    @mcp.tool(
+        name="search_skills",
+        title="Claude Agent Skills Search",
+        description=(
+            "Search and discover proven Claude Agent Skills that provide expert guidance for your tasks. "
+            "Use this tool whenever you're starting a new task, facing a coding challenge, or need specialized "
+            "techniques. Returns highly relevant skills with complete implementation guides, code examples, and "
+            "best practices ranked by relevance. Each result includes detailed step-by-step instructions you can "
+            "follow immediately. Essential for leveraging battle-tested patterns, avoiding common pitfalls, and "
+            "accelerating development with proven solutions. Perfect for finding reusable workflows, debugging "
+            "strategies, API integration patterns, data processing techniques, and domain-specific methodologies."
         )
-
-        if name == "search_skills":
-            return await handle_search_skills(
-                arguments,
-                search_engine,
-                loading_state_global,
-                default_top_k,
-                max_content_chars,
-            )
-        elif name == "read_skill_document":
-            return await handle_read_skill_document(arguments, search_engine)
-        elif name == "list_skills":
-            return await handle_list_skills(
-                arguments, search_engine, loading_state_global
-            )
-        else:
-            raise ValueError(f"Unknown tool: {name}")
+    )
+    async def search_skills(
+        task_description: str,
+        top_k: int = default_top_k,
+        list_documents: bool = True
+    ) -> list[TextContent]:
+        """Search for relevant skills."""
+        return await handle_search_skills(
+            {"task_description": task_description, "top_k": top_k, "list_documents": list_documents},
+            search_engine,
+            loading_state_global,
+            default_top_k,
+            max_content_chars,
+        )
+    
+    @mcp.tool(
+        name="read_skill_document",
+        title="Read Skill Document",
+        description=(
+            "Retrieve specific documents (scripts, references, assets) from a skill. "
+            "Use this after searching for skills to access additional resources like Python scripts, "
+            "example data files, reference materials, or images. Supports pattern matching to retrieve "
+            "multiple files at once (e.g., 'scripts/*.py' for all Python scripts)."
+        )
+    )
+    async def read_skill_document(
+        skill_name: str,
+        document_path: str | None = None,
+        include_base64: bool = False
+    ) -> list[TextContent]:
+        """Read a document from a skill."""
+        args = {"skill_name": skill_name, "include_base64": include_base64}
+        if document_path is not None:
+            args["document_path"] = document_path
+        return await handle_read_skill_document(args, search_engine)
+    
+    @mcp.tool(
+        name="list_skills",
+        title="List All Loaded Skills",
+        description=(
+            "Returns a complete inventory of all loaded skills with their names, descriptions, "
+            "sources, and document counts. Use this for exploration or debugging to see what "
+            "skills are available. NOTE: For finding relevant skills for a specific task, use "
+            "the 'search_skills' tool instead - it performs semantic search to find the most "
+            "appropriate skills for your needs."
+        )
+    )
+    async def list_skills() -> list[TextContent]:
+        """List all loaded skills."""
+        return await handle_list_skills({}, search_engine, loading_state_global)
 
 
 async def health_check(request):
@@ -200,7 +146,7 @@ async def health_check(request):
 
     response = {
         "status": "ok",
-        "version": "1.0.0",
+        "version": "1.0.2",
         "skills_loaded": skills_loaded,
         "models_loaded": models_loaded,
         "loading_complete": loading_state_global.is_complete
@@ -243,14 +189,6 @@ async def health_check(request):
     return JSONResponse(response)
 
 
-# Create Starlette app
-routes = [
-    Route("/health", health_check, methods=["GET"]),
-]
-
-app = Starlette(routes=routes)
-
-
 async def initialize_backend(config_path: str | None = None, verbose: bool = False):
     """Initialize search engine and load skills."""
     global \
@@ -287,8 +225,8 @@ async def initialize_backend(config_path: str | None = None, verbose: bool = Fal
         f"Update checker initialized (GitHub token: {'provided' if github_token else 'not provided'})"
     )
 
-    # Register MCP handlers
-    register_mcp_handlers(
+    # Register MCP tools
+    register_mcp_tools(
         default_top_k=config["default_top_k"],
         max_content_chars=config.get("max_skill_content_chars"),
     )
@@ -395,21 +333,24 @@ async def run_server(
     config_path: str | None = None,
     verbose: bool = False,
 ):
-    """Run the HTTP server."""
-    global session_manager
-
+    """Run the HTTP server using FastMCP with custom routes."""
     # Initialize backend (search engine, skills, etc.)
     await initialize_backend(config_path, verbose)
 
-    # Create session manager for MCP protocol
-    session_manager = StreamableHTTPSessionManager(mcp_server)
+    # Get FastMCP's ASGI app (includes /mcp route internally)
+    fastmcp_app = mcp.streamable_http_app()
+    
+    # Add our custom health route to the FastMCP app
+    fastmcp_app.routes.insert(0, Route("/health", health_check, methods=["GET"]))
+    
+    app = fastmcp_app
 
-    # Mount MCP endpoint - session manager is an ASGI app
-    app.mount("/mcp", session_manager)
-
-    # Run server
+    # Run server with uvicorn
     config = uvicorn.Config(
-        app, host=host, port=port, log_level="debug" if verbose else "info"
+        app,
+        host=host,
+        port=port,
+        log_level="debug" if verbose else "info"
     )
     server = uvicorn.Server(config)
     await server.serve()
