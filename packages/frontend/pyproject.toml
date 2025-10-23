@@ -1,6 +1,6 @@
 [project]
 name = "claude-skills-mcp"
-version = "1.0.0"
+version = "1.0.1"
 description = "Lightweight MCP proxy for Claude Skills (auto-downloads backend)"
 readme = "README.md"
 license = {text = "Apache-2.0"}
