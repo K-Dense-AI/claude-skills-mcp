@@ -137,6 +137,18 @@ def sync_versions(check_only: bool = False) -> bool:
             r'"packages/backend/dist/claude_skills_mcp_backend-[0-9]+\.[0-9]+\.[0-9]+-py3-none-any\.whl"',
             f'"packages/backend/dist/claude_skills_mcp_backend-{version}-py3-none-any.whl"',
         ),
+        (
+            "GitHub workflow (backend wheel)",
+            repo_root / ".github/workflows/test.yml",
+            r'claude_skills_mcp_backend-[0-9]+\.[0-9]+\.[0-9]+-py3-none-any\.whl',
+            f'claude_skills_mcp_backend-{version}-py3-none-any.whl',
+        ),
+        (
+            "GitHub workflow (frontend wheel)",
+            repo_root / ".github/workflows/test.yml",
+            r'claude_skills_mcp-[0-9]+\.[0-9]+\.[0-9]+-py3-none-any\.whl',
+            f'claude_skills_mcp-{version}-py3-none-any.whl',
+        ),
     ]
 
     all_synced = True
