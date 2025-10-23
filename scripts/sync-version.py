@@ -17,6 +17,7 @@ Arguments:
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import List, Tuple
@@ -174,6 +175,75 @@ def sync_versions(check_only: bool = False) -> bool:
         return True
 
 
+def update_lock_files(check_only: bool = False) -> bool:
+    """Update uv.lock files by running uv lock in each package.
+
+    Parameters
+    ----------
+    check_only : bool, optional
+        If True, only check if lock files need updating, by default False
+
+    Returns
+    -------
+    bool
+        True if successful or no update needed, False otherwise
+    """
+    repo_root = Path(__file__).parent.parent
+    packages = [
+        ("Backend", repo_root / "packages/backend"),
+        ("Frontend", repo_root / "packages/frontend"),
+    ]
+
+    if check_only:
+        # Just check if lock files contain the right version
+        version = read_version()
+        all_ok = True
+        
+        for name, package_dir in packages:
+            lock_file = package_dir / "uv.lock"
+            if lock_file.exists():
+                content = lock_file.read_text()
+                # Look for the package's own version in lock file
+                if name == "Backend":
+                    pattern = r'name = "claude-skills-mcp-backend"\nversion = "([^"]+)"'
+                else:
+                    pattern = r'name = "claude-skills-mcp"\nversion = "([^"]+)"'
+                
+                match = re.search(pattern, content)
+                if match and match.group(1) != version:
+                    print(f"❌ OUT OF SYNC        {name} uv.lock (version {match.group(1)} != {version})")
+                    all_ok = False
+                elif match:
+                    print(f"✓ OK                 {name} uv.lock")
+                else:
+                    print(f"⚠️  Could not verify {name} uv.lock")
+        
+        return all_ok
+    else:
+        # Update lock files
+        for name, package_dir in packages:
+            try:
+                print(f"Updating {name} lock file...", end=" ")
+                result = subprocess.run(
+                    ["uv", "lock"],
+                    cwd=package_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode == 0:
+                    print("✓")
+                else:
+                    print(f"✗ (exit code {result.returncode})")
+                    print(f"  Error: {result.stderr}")
+                    return False
+            except Exception as e:
+                print(f"✗ ({e})")
+                return False
+
+        return True
+
+
 def main() -> int:
     """Main entry point.
 
@@ -190,7 +260,20 @@ def main() -> int:
         print("🔄 Syncing versions...\n")
 
     success = sync_versions(check_only)
-    return 0 if success else 1
+    
+    if not success:
+        return 1
+    
+    # Also update/check lock files
+    print()
+    lock_success = update_lock_files(check_only)
+    
+    if not lock_success:
+        if check_only:
+            print("\nRun 'python scripts/sync-version.py' to update lock files.")
+        return 1
+    
+    return 0
 
 
 if __name__ == "__main__":
