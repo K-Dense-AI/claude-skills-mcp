@@ -123,6 +123,10 @@ Examples:
 
 async def main_async() -> None:
     """Main async function."""
+    import atexit
+    import os as os_module
+    import signal as signal_module
+    
     args, backend_args = parse_args()
 
     # Setup logging
@@ -130,6 +134,27 @@ async def main_async() -> None:
     logger = logging.getLogger(__name__)
 
     logger.info("Starting Claude Skills MCP Frontend (Proxy)")
+    
+    # Global references for cleanup
+    proxy_instance = None
+    backend_port = 8765  # Default port
+    
+    def emergency_cleanup():
+        """Emergency cleanup that runs even if process is killed."""
+        try:
+            # Kill any process on the backend port
+            import subprocess
+            subprocess.run(
+                f"lsof -ti :{backend_port} | xargs kill -9 2>/dev/null || true",
+                shell=True,
+                timeout=2,
+                capture_output=True
+            )
+        except:
+            pass  # Silent failure - this is last-ditch cleanup
+    
+    # Register atexit handler (runs on ANY exit except SIGKILL)
+    atexit.register(emergency_cleanup)
 
     # Handle example config - just forward to backend
     if args.example_config:
@@ -169,6 +194,8 @@ async def main_async() -> None:
 
         # Create and start proxy with backend args
         proxy = MCPProxy(backend_args=backend_args)
+        proxy_instance = proxy
+        backend_port = proxy.backend_manager.backend_port
         await proxy.start()
 
     except KeyboardInterrupt:

@@ -41,6 +41,7 @@ class BackendManager:
         self.backend_host = host
         self.backend_process: Optional[asyncio.subprocess.Process] = None
         self.backend_url: Optional[str] = None
+        self.reused_backend: bool = False  # Track if we reused existing backend
 
     def check_backend_available(self) -> bool:
         """Check if backend package is available via uvx.
@@ -202,8 +203,7 @@ class BackendManager:
         """Ensure backend is running via uvx.
 
         Checks if backend is already running on the port. If yes and healthy,
-        reuses it. Otherwise spawns a new one. This prevents port conflicts
-        when Cursor spawns multiple MCP instances.
+        reuses it. Otherwise kills any zombie and spawns a new one.
 
         Parameters
         ----------
@@ -226,24 +226,63 @@ class BackendManager:
                 if response.status_code == 200:
                     health_data = response.json()
                     skills_loaded = health_data.get("skills_loaded", 0)
-                    logger.info(
-                        f"Backend already running on port {self.backend_port} "
-                        f"with {skills_loaded} skills - reusing it"
-                    )
-                    self.backend_url = backend_url
-                    return backend_url
+                    loading_complete = health_data.get("loading_complete", False)
+                    
+                    # Only reuse if it's healthy AND fully loaded
+                    if loading_complete and skills_loaded > 0:
+                        logger.info(
+                            f"Backend already running on port {self.backend_port} "
+                            f"with {skills_loaded} skills - reusing it"
+                        )
+                        self.backend_url = backend_url
+                        self.reused_backend = True
+                        return backend_url
+                    else:
+                        # Backend is unhealthy or still loading - kill it and start fresh
+                        logger.warning(
+                            f"Found unhealthy backend on port {self.backend_port} "
+                            f"(skills={skills_loaded}, complete={loading_complete}) - killing it"
+                        )
+                        self._kill_process_on_port(self.backend_port)
+                        await asyncio.sleep(1)  # Give it time to die
         except Exception:
-            # Backend not running, we'll start it
-            logger.info("No backend found, starting new instance...")
-            pass
+            # Backend not responding - might be zombie, try to kill it
+            logger.info("No healthy backend found, checking for zombies...")
+            self._kill_process_on_port(self.backend_port)
+            await asyncio.sleep(1)
 
         # Start new backend
         logger.info("Starting backend via uvx (auto-downloads if needed)...")
         return await self.start_backend(backend_args)
+    
+    def _kill_process_on_port(self, port: int) -> None:
+        """Kill any process listening on the given port.
+        
+        Parameters
+        ----------
+        port : int
+            Port number to check and kill.
+        """
+        try:
+            import subprocess
+            logger.info(f"Attempting to kill any process on port {port}")
+            # Find and kill process on port
+            subprocess.run(
+                f"lsof -ti :{port} | xargs kill -9 2>/dev/null || true",
+                shell=True,
+                timeout=2,
+                capture_output=True
+            )
+            logger.info(f"Cleanup attempt completed for port {port}")
+        except Exception as e:
+            logger.debug(f"Error during port cleanup: {e}")
 
     async def cleanup(self) -> None:
         """Cleanup backend process and all child processes."""
+        # Always try to kill backend on this port, even if we reused it
+        # This ensures no zombies when Cursor exits
         if self.backend_process:
+            # We spawned this backend - kill it properly
             try:
                 # For shell=True, we need to kill the entire process group
                 # Send SIGTERM to the process group to kill backend + uvx + python
@@ -270,3 +309,19 @@ class BackendManager:
                     
             except Exception as e:
                 logger.warning(f"Error during backend cleanup: {e}")
+                
+        elif self.reused_backend and self.backend_url:
+            # We reused an existing backend - send shutdown request via API
+            try:
+                logger.info(f"Sending shutdown request to reused backend on port {self.backend_port}")
+                # Send graceful shutdown by killing via port
+                import subprocess
+                # Find process on port and kill it
+                result = subprocess.run(
+                    f"lsof -ti :{self.backend_port} | xargs kill -TERM 2>/dev/null || true",
+                    shell=True,
+                    timeout=2
+                )
+                logger.info("Shutdown request sent to reused backend")
+            except Exception as e:
+                logger.warning(f"Error sending shutdown to reused backend: {e}")
