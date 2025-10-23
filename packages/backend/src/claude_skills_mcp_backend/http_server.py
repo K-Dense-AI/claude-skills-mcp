@@ -146,7 +146,7 @@ async def health_check(request):
 
     response = {
         "status": "ok",
-        "version": "1.0.4",
+        "version": "1.0.5",
         "skills_loaded": skills_loaded,
         "models_loaded": models_loaded,
         "loading_complete": loading_state_global.is_complete

@@ -1,6 +1,6 @@
 [project]
 name = "claude-skills-mcp-backend"
-version = "1.0.4"
+version = "1.0.5"
 description = "Heavy backend for Claude Skills MCP server with vector search (Streamable HTTP)"
 readme = "README.md"
 license = {text = "Apache-2.0"}

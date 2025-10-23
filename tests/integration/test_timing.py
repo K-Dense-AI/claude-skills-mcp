@@ -128,7 +128,7 @@ def test_package_sizes():
     import os
 
     # Check frontend wheel size
-    frontend_wheel = "packages/frontend/dist/claude_skills_mcp-1.0.4-py3-none-any.whl"
+    frontend_wheel = "packages/frontend/dist/claude_skills_mcp-1.0.5-py3-none-any.whl"
     if os.path.exists(frontend_wheel):
         size_kb = os.path.getsize(frontend_wheel) / 1024
         print(f"\nFrontend wheel size: {size_kb:.1f} KB")
@@ -137,7 +137,7 @@ def test_package_sizes():
 
     # Check backend wheel size
     backend_wheel = (
-        "packages/backend/dist/claude_skills_mcp_backend-1.0.4-py3-none-any.whl"
+        "packages/backend/dist/claude_skills_mcp_backend-1.0.5-py3-none-any.whl"
     )
     if os.path.exists(backend_wheel):
         size_kb = os.path.getsize(backend_wheel) / 1024
