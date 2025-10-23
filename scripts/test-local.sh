@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "================================================"
-echo "Testing Claude Skills MCP v1.0.0"
+echo "Testing Claude Skills MCP"
 echo "================================================"
 echo ""
 
