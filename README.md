@@ -4,7 +4,7 @@
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![PyPI version](https://badge.fury.io/py/claude-skills-mcp.svg)](https://badge.fury.io/py/claude-skills-mcp)
+[![PyPI version](https://badge.fury.io/py/claude-skills-mcp.svg?icon=si%3Apython)](https://badge.fury.io/py/claude-skills-mcp)
 
 > **Use [Claude's powerful new Skills system](https://www.anthropic.com/news/skills) with ANY AI model or coding assistant** - including Cursor, Codex, GPT-5, Gemini, and more. This MCP server brings Anthropic's Agent Skills framework to the entire AI ecosystem through the Model Context Protocol.
 
