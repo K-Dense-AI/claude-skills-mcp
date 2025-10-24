@@ -15,7 +15,11 @@ A Model Context Protocol (MCP) server that provides intelligent search capabilit
 This MCP server enables any MCP-compatible AI assistant to intelligently search and retrieve skills from our curated [Claude Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository and other skill sources like the [Official Claude Skills](https://github.com/anthropics/skills).
 
 <a href="https://cursor.com/en-US/install-mcp?name=claude-skills-mcp&config=eyJjb21tYW5kIjoidXZ4IGNsYXVkZS1za2lsbHMtbWNwIn0%3D">
-  <img src="https://cursor.com/deeplink/mcp-install-light.svg" alt="Install MCP Server" style="height:36px;"/>
+  <picture>
+    <source srcset="https://cursor.com/deeplink/mcp-install-light.svg" media="(prefers-color-scheme: dark)">
+    <source srcset="https://cursor.com/deeplink/mcp-install-dark.svg" media="(prefers-color-scheme: light)">
+    <img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install MCP Server" style="height:2.7em;"/>
+  </picture>
 </a>
 
 ## Demo
