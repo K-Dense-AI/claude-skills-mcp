@@ -9,17 +9,25 @@ def test_frontend_startup_time():
     """Test that frontend starts quickly (critical for Cursor timeout)."""
     # Use frontend from published PyPI (once published)
     # For now, test the import speed only
+    from pathlib import Path
+    
+    # Find frontend directory relative to this test file
+    test_dir = Path(__file__).parent
+    frontend_dir = test_dir.parent.parent / "packages" / "frontend"
+    
     start_time = time.time()
     result = subprocess.run(
         [
-            "python3",
+            "uv",
+            "run",
+            "python",
             "-c",
             "from claude_skills_mcp import __version__; print(__version__)",
         ],
         capture_output=True,
         text=True,
         timeout=5,
-        cwd="/Users/haoxuanl/kdense/claude-skills-mcp/packages/frontend",
+        cwd=str(frontend_dir),
     )
     elapsed = time.time() - start_time
 

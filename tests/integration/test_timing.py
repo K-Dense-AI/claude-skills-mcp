@@ -125,22 +125,24 @@ def test_backend_warm_start():
 
 def test_package_sizes():
     """Verify package sizes are as expected."""
-    import os
+    from pathlib import Path
+
+    # Find project root relative to this test file
+    test_dir = Path(__file__).parent
+    project_root = test_dir.parent.parent
 
     # Check frontend wheel size
-    frontend_wheel = "packages/frontend/dist/claude_skills_mcp-1.0.5-py3-none-any.whl"
-    if os.path.exists(frontend_wheel):
-        size_kb = os.path.getsize(frontend_wheel) / 1024
+    frontend_wheel = project_root / "packages/frontend/dist/claude_skills_mcp-1.0.5-py3-none-any.whl"
+    if frontend_wheel.exists():
+        size_kb = frontend_wheel.stat().st_size / 1024
         print(f"\nFrontend wheel size: {size_kb:.1f} KB")
         assert size_kb < 50, f"Frontend wheel ({size_kb:.1f} KB) should be < 50 KB"
         print(f"✅ Frontend is lightweight: {size_kb:.1f} KB")
 
     # Check backend wheel size
-    backend_wheel = (
-        "packages/backend/dist/claude_skills_mcp_backend-1.0.5-py3-none-any.whl"
-    )
-    if os.path.exists(backend_wheel):
-        size_kb = os.path.getsize(backend_wheel) / 1024
+    backend_wheel = project_root / "packages/backend/dist/claude_skills_mcp_backend-1.0.5-py3-none-any.whl"
+    if backend_wheel.exists():
+        size_kb = backend_wheel.stat().st_size / 1024
         print(
             f"Backend wheel size: {size_kb:.1f} KB (source only, dependencies separate)"
         )
