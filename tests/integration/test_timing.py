@@ -140,7 +140,7 @@ def test_package_sizes():
         print(f"✅ Frontend is lightweight: {size_kb:.1f} KB")
 
     # Check backend wheel size
-    backend_wheel = project_root / "packages/backend/dist/claude_skills_mcp_backend-1.0.5-py3-none-any.whl"
+    backend_wheel = project_root / "packages/backend/dist/claude_skills_mcp_backend-1.0.6-py3-none-any.whl"
     if backend_wheel.exists():
         size_kb = backend_wheel.stat().st_size / 1024
         print(
