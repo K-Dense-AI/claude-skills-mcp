@@ -92,7 +92,7 @@ uvx claude-skills-mcp --config config.json
 
 The server provides three tools for working with Claude Agent Skills:
 
-1. **`search_skills`** - Semantic search for relevant skills based on task description
+1. **`find_helpful_skills`** - Semantic search for relevant skills based on task description
 2. **`read_skill_document`** - Retrieve specific files (scripts, data, references) from skills  
 3. **`list_skills`** - View complete inventory of all loaded skills (for exploration/debugging)
 

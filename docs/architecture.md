@@ -165,7 +165,7 @@ Query:
 **Key Features**:
 - **Standard MCP protocol** implementation
 - **Three tools** with optimized descriptions:
-  1. `search_skills` - Semantic search
+  1. `find_helpful_skills` - Semantic search
   2. `read_skill_document` - Access skill files
   3. `list_skills` - Browse all skills
 - **Progressive disclosure** of skill content:
@@ -193,7 +193,7 @@ Frontend Proxy (stdio MCP server)
     ↓
 HTTP Client → Backend (streamable HTTP MCP server)
     ↓
-MCP Handler (search_skills, read_skill_document, list_skills)
+MCP Handler (find_helpful_skills, read_skill_document, list_skills)
     ↓
 Search Engine / Skill Loader
     ↓
@@ -343,7 +343,7 @@ MCP Client
     ↓
 MCP Server (stdio)
     ↓
-Tool Handler (search_skills)
+Tool Handler (find_helpful_skills)
     ↓
 Search Engine
     ↓
@@ -429,7 +429,7 @@ Following Anthropic's Agent Skills architecture:
 
 ### Why Three Tools?
 
-1. **`search_skills`**: Task-oriented discovery (main use case)
+1. **`find_helpful_skills`**: Task-oriented discovery (main use case)
 2. **`read_skill_document`**: Access scripts and assets (progressive disclosure)
 3. **`list_skills`**: Exploration and debugging (understand what's available)
 

@@ -18,18 +18,17 @@ logger = logging.getLogger(__name__)
 
 # HARDCODED tool schemas (must match backend exactly!)
 # This allows instant list_tools response without waiting for backend
+
 TOOL_SCHEMAS = [
     Tool(
-        name="search_skills",
-        title="Claude Agent Skills Search",
+        name="find_helpful_skills",
+        title="Find the most helpful skill for any task",
         description=(
-            "Search and discover proven Claude Agent Skills that provide expert guidance for your tasks. "
-            "Use this tool whenever you're starting a new task, facing a coding challenge, or need specialized "
-            "techniques. Returns highly relevant skills with complete implementation guides, code examples, and "
-            "best practices ranked by relevance. Each result includes detailed step-by-step instructions you can "
-            "follow immediately. Essential for leveraging battle-tested patterns, avoiding common pitfalls, and "
-            "accelerating development with proven solutions. Perfect for finding reusable workflows, debugging "
-            "strategies, API integration patterns, data processing techniques, and domain-specific methodologies."
+            "Always call this tool FIRST whenever the question requires any domain-specific knowledge "
+            "beyond common sense or simple recall. Use it at task start, regardless of the task and whether "
+            "you are sure about the task, It performs semantic search over a curated library of proven skills "
+            "and returns ranked candidates with step-by-step guidance and best practices. Do this before any "
+            "searches, coding, or any other actions as this will inform you about the best approach to take."
         ),
         inputSchema={
             "type": "object",
@@ -60,19 +59,18 @@ TOOL_SCHEMAS = [
     ),
     Tool(
         name="read_skill_document",
-        title="Read Skill Document",
+        title="Open skill documents and assets",
         description=(
-            "Retrieve specific documents (scripts, references, assets) from a skill. "
-            "Use this after searching for skills to access additional resources like Python scripts, "
-            "example data files, reference materials, or images. Supports pattern matching to retrieve "
-            "multiple files at once (e.g., 'scripts/*.py' for all Python scripts)."
+            "Use after finding a relevant skill to retrieve specific documents (scripts, references, assets). "
+            "Supports pattern matching (e.g., 'scripts/*.py') to fetch multiple files. Returns text content or URLs "
+            "and never executes code. Prefer pulling only the files you need to complete the current step."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "skill_name": {
                     "type": "string",
-                    "description": "Name of the skill (as returned by search_skills)",
+                    "description": "Name of the skill (as returned by find_helpful_skills)",
                 },
                 "document_path": {
                     "type": "string",
@@ -96,13 +94,11 @@ TOOL_SCHEMAS = [
     ),
     Tool(
         name="list_skills",
-        title="List All Loaded Skills",
+        title="List available skills",
         description=(
-            "Returns a complete inventory of all loaded skills with their names, descriptions, "
-            "sources, and document counts. Use this for exploration or debugging to see what "
-            "skills are available. NOTE: For finding relevant skills for a specific task, use "
-            "the 'search_skills' tool instead - it performs semantic search to find the most "
-            "appropriate skills for your needs."
+            "Returns the full inventory of loaded skills (names, descriptions, sources, document counts) "
+            "for exploration or debugging. For task-driven work, prefer calling 'find_helpful_skills' first "
+            "to locate the most relevant option before reading documents."
         ),
         inputSchema={
             "type": "object",
@@ -111,6 +107,7 @@ TOOL_SCHEMAS = [
         },
     ),
 ]
+
 
 
 class MCPProxy:

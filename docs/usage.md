@@ -360,11 +360,11 @@ The server currently has 78 skills loaded from K-Dense-AI/claude-scientific-skil
 ...
 ```
 
-**When to use `list_skills` vs `search_skills`:**
+**When to use `list_skills` vs `find_helpful_skills`:**
 - Use `list_skills` to browse all available skills (exploration)
-- Use `search_skills` to find relevant skills for a specific task (task-oriented)
+- Use `find_helpful_skills` to find relevant skills for a specific task (task-oriented)
 
-**Note:** `list_skills` returns ALL skills, which can be a large amount of text. For finding skills relevant to your task, prefer `search_skills` which uses semantic search to return only the most relevant matches.
+**Note:** `list_skills` returns ALL skills, which can be a large amount of text. For finding skills relevant to your task, prefer `find_helpful_skills` which uses semantic search to return only the most relevant matches.
 
 ## Troubleshooting
 

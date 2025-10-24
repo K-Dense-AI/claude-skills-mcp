@@ -145,16 +145,14 @@ class SkillsMCPServer:
             """List available tools."""
             return [
                 Tool(
-                    name="search_skills",
-                    title="Claude Agent Skills Search",
+                    name="find_helpful_skills",
+                    title="Find the most helpful skill for any task",
                     description=(
-                        "Search and discover proven Claude Agent Skills that provide expert guidance for your tasks. "
-                        "Use this tool whenever you're starting a new task, facing a coding challenge, or need specialized "
-                        "techniques. Returns highly relevant skills with complete implementation guides, code examples, and "
-                        "best practices ranked by relevance. Each result includes detailed step-by-step instructions you can "
-                        "follow immediately. Essential for leveraging battle-tested patterns, avoiding common pitfalls, and "
-                        "accelerating development with proven solutions. Perfect for finding reusable workflows, debugging "
-                        "strategies, API integration patterns, data processing techniques, and domain-specific methodologies."
+                        "Always call this tool FIRST whenever the question requires any domain-specific knowledge "
+                        "beyond common sense or simple recall. Use it at task start, regardless of the task and whether "
+                        "you are sure about the task, It performs semantic search over a curated library of proven skills "
+                        "and returns ranked candidates with step-by-step guidance and best practices. Do this before any "
+                        "searches, coding, or any other actions as this will inform you about the best approach to take."
                     ),
                     inputSchema={
                         "type": "object",
@@ -185,19 +183,18 @@ class SkillsMCPServer:
                 ),
                 Tool(
                     name="read_skill_document",
-                    title="Read Skill Document",
+                    title="Open skill documents and assets",
                     description=(
-                        "Retrieve specific documents (scripts, references, assets) from a skill. "
-                        "Use this after searching for skills to access additional resources like Python scripts, "
-                        "example data files, reference materials, or images. Supports pattern matching to retrieve "
-                        "multiple files at once (e.g., 'scripts/*.py' for all Python scripts)."
+                        "Use after finding a relevant skill to retrieve specific documents (scripts, references, assets). "
+                        "Supports pattern matching (e.g., 'scripts/*.py') to fetch multiple files. Returns text content or URLs "
+                        "and never executes code. Prefer pulling only the files you need to complete the current step."
                     ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "skill_name": {
                                 "type": "string",
-                                "description": "Name of the skill (as returned by search_skills)",
+                                "description": "Name of the skill (as returned by find_helpful_skills)",
                             },
                             "document_path": {
                                 "type": "string",
@@ -221,13 +218,11 @@ class SkillsMCPServer:
                 ),
                 Tool(
                     name="list_skills",
-                    title="List All Loaded Skills",
+                    title="List available skills",
                     description=(
-                        "Returns a complete inventory of all loaded skills with their names, descriptions, "
-                        "sources, and document counts. Use this for exploration or debugging to see what "
-                        "skills are available. NOTE: For finding relevant skills for a specific task, use "
-                        "the 'search_skills' tool instead - it performs semantic search to find the most "
-                        "appropriate skills for your needs."
+                        "Returns the full inventory of loaded skills (names, descriptions, sources, document counts) "
+                        "for exploration or debugging. For task-driven work, prefer calling 'find_helpful_skills' first "
+                        "to locate the most relevant option before reading documents."
                     ),
                     inputSchema={
                         "type": "object",
@@ -240,7 +235,7 @@ class SkillsMCPServer:
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Handle tool calls."""
-            if name == "search_skills":
+            if name == "find_helpful_skills":
                 return await self._handle_search_skills(arguments)
             elif name == "read_skill_document":
                 return await self._handle_read_skill_document(arguments)
@@ -252,7 +247,7 @@ class SkillsMCPServer:
     async def _handle_search_skills(
         self, arguments: dict[str, Any]
     ) -> list[TextContent]:
-        """Handle search_skills tool calls.
+        """Handle find_helpful_skills tool calls.
 
         Parameters
         ----------
@@ -389,7 +384,7 @@ class SkillsMCPServer:
             return [
                 TextContent(
                     type="text",
-                    text=f"Skill '{skill_name}' not found. Please use search_skills to find valid skill names.",
+                    text=f"Skill '{skill_name}' not found. Please use find_helpful_skills to find valid skill names.",
                 )
             ]
 
@@ -587,7 +582,7 @@ async def handle_search_skills(
     default_top_k: int = 3,
     max_content_chars: int | None = None,
 ) -> list[TextContent]:
-    """Handle search_skills tool calls (standalone version for HTTP server)."""
+    """Handle find_helpful_skills tool calls (standalone version for HTTP server)."""
 
     task_description = arguments.get("task_description")
     if not task_description:
@@ -695,7 +690,7 @@ async def handle_read_skill_document(
         return [
             TextContent(
                 type="text",
-                text=f"Skill '{skill_name}' not found. Please use search_skills to find valid skill names.",
+                text=f"Skill '{skill_name}' not found. Please use find_helpful_skills to find valid skill names.",
             )
         ]
 

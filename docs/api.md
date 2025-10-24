@@ -8,13 +8,13 @@ The server exposes three MCP tools for working with Claude Agent Skills, followi
 
 ---
 
-## Tool 1: `search_skills`
+## Tool 1: `find_helpful_skills`
 
-**Purpose**: Search and discover relevant Claude Agent Skills using semantic similarity.
+**Purpose**: Find the most helpful skill for any task using semantic similarity.
 
 ### Description
 
-Search and discover proven Claude Agent Skills that provide expert guidance for your tasks. Use this tool whenever you're starting a new task, facing a coding challenge, or need specialized techniques. Returns highly relevant skills with complete implementation guides, code examples, and best practices ranked by relevance.
+Always call this tool FIRST whenever the question requires any domain-specific knowledge beyond common sense or simple recall. Use it at task start, regardless of the task and whether you are sure about the task, It performs semantic search over a curated library of proven skills and returns ranked candidates with step-by-step guidance and best practices. Do this before any searches, coding, or any other actions as this will inform you about the best approach to take.
 
 ### When to Use
 
@@ -141,7 +141,7 @@ Access additional resources from skills including Python scripts, example data f
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `skill_name` | string | Yes | - | Name of the skill (as returned by search_skills) |
+| `skill_name` | string | Yes | - | Name of the skill (as returned by find_helpful_skills) |
 | `document_path` | string | No | null | Path or pattern to match documents. If not provided, lists all available documents |
 | `include_base64` | boolean | No | false | For images: if true, return base64-encoded content; if false, return only URL |
 
@@ -292,7 +292,7 @@ Alternatively, access via URL: https://raw.githubusercontent.com/.../heatmap.png
 
 ### Description
 
-Returns a complete inventory of all loaded skills with their names, descriptions, sources, and document counts. Use this for exploration or debugging to see what skills are available. **NOTE**: For finding relevant skills for a specific task, use the `search_skills` tool instead - it performs semantic search to find the most appropriate skills.
+Returns the full inventory of loaded skills (names, descriptions, sources, document counts) for exploration or debugging. For task-driven work, prefer calling 'find_helpful_skills' first to locate the most relevant option before reading documents.
 
 ### When to Use
 
@@ -303,8 +303,8 @@ Returns a complete inventory of all loaded skills with their names, descriptions
 
 ### When NOT to Use
 
-- **Task-oriented queries**: Use `search_skills` instead
-- **Finding relevant skills**: Use `search_skills` for semantic matching
+- **Task-oriented queries**: Use `find_helpful_skills` instead
+- **Finding relevant skills**: Use `find_helpful_skills` for semantic matching
 - **Production use cases**: This returns ALL skills (large output)
 
 ### Input Parameters
@@ -368,7 +368,7 @@ to verify it's in the loaded set.
 
 **Don't use for task queries**:
 - ❌ Wrong: Call list_skills to find skills for "RNA analysis"
-- ✅ Right: Call search_skills("RNA analysis") instead
+- ✅ Right: Call find_helpful_skills("RNA analysis") instead
 
 **Output size warning**:
 - With 70+ skills, output can be 50-100KB
@@ -377,7 +377,7 @@ to verify it's in the loaded set.
 
 **Typical workflow**:
 1. Call `list_skills` once to understand available skills
-2. Use `search_skills` for all subsequent task-oriented queries
+2. Use `find_helpful_skills` for all subsequent task-oriented queries
 
 ---
 
@@ -385,27 +385,27 @@ to verify it's in the loaded set.
 
 | Scenario | Use This Tool | Why |
 |----------|---------------|-----|
-| "I need help with X" | `search_skills` | Semantic search finds relevant skills |
+| "I need help with X" | `find_helpful_skills` | Semantic search finds relevant skills |
 | "Show me the Python script" | `read_skill_document` | Access specific files from skills |
 | "What skills are available?" | `list_skills` | Complete inventory |
-| "Find protein analysis tools" | `search_skills` | Semantic matching |
+| "Find protein analysis tools" | `find_helpful_skills` | Semantic matching |
 | "Get all scripts from scanpy" | `read_skill_document` | Pattern matching |
 | "Verify config is working" | `list_skills` | See what loaded |
-| "Compare 5 approaches" | `search_skills` with top_k=5 | Multiple results |
+| "Compare 5 approaches" | `find_helpful_skills` with top_k=5 | Multiple results |
 | "I want that example data" | `read_skill_document` | Get specific files |
 
 ## Progressive Disclosure Pattern
 
 The tools are designed to work together following Anthropic's progressive disclosure architecture:
 
-**Level 1: Discovery** (search_skills)
+**Level 1: Discovery** (find_helpful_skills)
 ```
 Task: "analyze RNA sequencing data"
     ↓
 Returns: Top 3 relevant skills with descriptions
 ```
 
-**Level 2: Exploration** (search_skills with high top_k)
+**Level 2: Exploration** (find_helpful_skills with high top_k)
 ```
 Increase top_k to 10 to see more options
 Compare approaches and choose best fit
@@ -443,9 +443,9 @@ Solution: Check server configuration and skill sources.
 
 **Skill not found**:
 ```
-Skill 'xyz' not found. Please use search_skills to find valid skill names.
+Skill 'xyz' not found. Please use find_helpful_skills to find valid skill names.
 ```
-Solution: Use exact skill name from search_skills results.
+Solution: Use exact skill name from find_helpful_skills results.
 
 **Document not found**:
 ```
@@ -465,7 +465,7 @@ Solution: Access via URL rather than base64.
 
 ### max_skill_content_chars
 
-When set, truncates skill content in `search_skills` results:
+When set, truncates skill content in `find_helpful_skills` results:
 
 ```json
 {
@@ -485,7 +485,7 @@ When set, truncates skill content in `search_skills` results:
 
 ### default_top_k
 
-Changes default number of results in `search_skills`:
+Changes default number of results in `find_helpful_skills`:
 
 ```json
 {
@@ -514,7 +514,7 @@ Controls whether `read_skill_document` works:
 
 ## Performance Characteristics
 
-### search_skills
+### find_helpful_skills
 - **Query time**: <1 second
 - **Startup cost**: 5-10 seconds (indexing)
 - **Scales**: Linear with number of skills
@@ -535,9 +535,9 @@ When integrating these tools into an AI assistant:
 
 ### Search Strategy
 
-1. **Start with search_skills**: Almost always the right first step
+1. **Start with find_helpful_skills**: Almost always the right first step
 2. **Be specific**: Better search results with detailed task descriptions
-3. **Iterate**: Can call search_skills multiple times with refined queries
+3. **Iterate**: Can call find_helpful_skills multiple times with refined queries
 4. **Increase top_k**: When initial results aren't perfect
 
 ### Document Access
@@ -548,7 +548,7 @@ When integrating these tools into an AI assistant:
 
 ### Context Management
 
-1. **Prefer search over list**: search_skills is more efficient
+1. **Prefer search over list**: find_helpful_skills is more efficient
 2. **Progressive disclosure**: Load details only when needed
 3. **Truncate wisely**: Use max_skill_content_chars if context is tight
 
@@ -561,15 +561,15 @@ When integrating these tools into an AI assistant:
 ## API Best Practices Summary
 
 ✅ **Do**:
-- Use `search_skills` for task-oriented queries
+- Use `find_helpful_skills` for task-oriented queries
 - Provide specific, detailed task descriptions
 - Use `read_skill_document` for accessing scripts and files
 - List documents before requesting specific ones
-- Call `list_skills` once for inventory, then use `search_skills`
+- Call `list_skills` once for inventory, then use `find_helpful_skills`
 
 ❌ **Don't**:
 - Use `list_skills` for every query (high context cost)
-- Use vague task descriptions in `search_skills`
+- Use vague task descriptions in `find_helpful_skills`
 - Request base64 images unless necessary
 - Request documents you won't use
 - Rely on exact skill names - use search instead

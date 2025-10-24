@@ -104,7 +104,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 - "Find skills for protein structure prediction"
 - "Search for drug discovery tools"
 
-You should see Claude invoke the `search_skills` tool in its chain of thought.
+You should see Claude invoke the `find_helpful_skills` tool in its chain of thought.
 
 ### Option 2: MCP Inspector (Debugging)
 
@@ -116,7 +116,7 @@ npx @modelcontextprotocol/inspector uv --directory /path/to/claude-skills-mcp ru
 
 This opens a web UI where you can:
 - See available tools
-- Call `search_skills` with custom queries
+- Call `find_helpful_skills` with custom queries
 - View request/response JSON
 - Debug protocol issues
 

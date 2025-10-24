@@ -96,7 +96,7 @@ def test_hardcoded_tools_match_backend():
 
     # Check tool names
     tool_names = [tool.name for tool in TOOL_SCHEMAS]
-    assert "search_skills" in tool_names
+    assert "find_helpful_skills" in tool_names
     assert "read_skill_document" in tool_names
     assert "list_skills" in tool_names
 
