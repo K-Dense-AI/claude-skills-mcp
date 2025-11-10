@@ -147,6 +147,14 @@ Contributions are welcome! To contribute:
 
 For questions, email [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai)
 
+## Join Our Community! 🚀
+
+**We'd love to have you in our Slack community!** Connect with other users, share tips and tricks, get help with your skills, and be the first to know about new features and updates.
+
+👉 **[Join the K-Dense Community on Slack](https://join.slack.com/t/k-densecommunity/shared_invite/zt-3iajtyls1-EwmkwIZk0g_o74311Tkf5g)** 👈
+
+Whether you're building custom skills, integrating with different AI models, or just exploring the possibilities of Agent Skills, our community is here to support you!
+
 ## Learn More
 
 - [Agent Skills Documentation](https://docs.claude.com/en/docs/claude-code/skills) - Official Anthropic documentation on the Skills format
@@ -159,3 +167,7 @@ For questions, email [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai)
 This project is licensed under the [Apache License 2.0](LICENSE).
 
 Copyright 2025 K-Dense AI (https://k-dense.ai)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=K-Dense-AI/claude-skills-mcp&type=date&legend=top-left)](https://www.star-history.com/#K-Dense-AI/claude-skills-mcp&type=date&legend=top-left)
