@@ -80,6 +80,44 @@ uvx claude-skills-mcp --example-config > config.json
 uvx claude-skills-mcp --config config.json
 ```
 
+## Windows Installation
+
+`claude-skills-mcp` works on Windows 10 and Windows 11 via [uv](https://docs.astral.sh/uv/).
+
+### Prerequisites
+
+1. Install **uv** (includes `uvx`):
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+2. Ensure **Python 3.12** is available (uv can install it automatically).
+
+### Claude Desktop (Windows)
+
+Add to `%APPDATA%\Claude\claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "claude-skills": {
+      "command": "uvx",
+      "args": ["claude-skills-mcp"]
+    }
+  }
+}
+```
+
+### Cursor (Windows)
+
+Add to `%USERPROFILE%\.cursor\mcp.json` (same JSON as above).
+
+### Troubleshooting (Windows)
+
+- **First run is slow** — PyTorch and sentence-transformers (~250 MB) are downloaded once in the background. Subsequent runs are instant.
+- **Firewall prompt** — Windows may ask to allow `python.exe` to listen on `127.0.0.1:8765`. Allow it (local only).
+- **`uvx` not found** — Restart your terminal after installing uv so `PATH` is updated.
+- **Antivirus false positive** — Some AV products flag newly-downloaded Python packages. Add `%USERPROFILE%\.cache\uv` to your AV exclusions if installs hang.
+
 ## Documentation
 
 - **[Getting Started](docs/getting-started.md)** - Installation, Cursor setup, CLI usage, and troubleshooting
