@@ -7,6 +7,8 @@ import sys
 
 from .mcp_proxy import MCPProxy
 
+_IS_WINDOWS = sys.platform == "win32"
+
 
 def setup_logging(verbose: bool = False) -> None:
     """Configure logging.
@@ -142,15 +144,32 @@ async def main_async() -> None:
     def emergency_cleanup():
         """Emergency cleanup that runs even if process is killed."""
         try:
-            # Kill any process on the backend port
             import subprocess
-            subprocess.run(
-                f"lsof -ti :{backend_port} | xargs kill -9 2>/dev/null || true",
-                shell=True,
-                timeout=2,
-                capture_output=True
-            )
-        except:
+            if _IS_WINDOWS:
+                # Windows: find PID via netstat and kill with taskkill
+                result = subprocess.run(
+                    ["netstat", "-ano"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                for line in result.stdout.splitlines():
+                    if f":{backend_port} " in line and "LISTENING" in line:
+                        parts = line.split()
+                        pid = parts[-1]
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", pid],
+                            capture_output=True,
+                            timeout=5,
+                        )
+            else:
+                subprocess.run(
+                    f"lsof -ti :{backend_port} | xargs kill -9 2>/dev/null || true",
+                    shell=True,
+                    timeout=2,
+                    capture_output=True,
+                )
+        except Exception:
             pass  # Silent failure - this is last-ditch cleanup
     
     # Register atexit handler (runs on ANY exit except SIGKILL)

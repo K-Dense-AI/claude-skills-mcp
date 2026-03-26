@@ -5,11 +5,14 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 from typing import Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+_IS_WINDOWS = sys.platform == "win32"
 
 
 class BackendManager:
@@ -76,21 +79,30 @@ class BackendManager:
             f"Starting backend server on {self.backend_host}:{self.backend_port}"
         )
 
-        # Build shell command with unbuffered output
-        args_str = " ".join(backend_args)
-        cmd = f"PYTHONUNBUFFERED=1 uvx claude-skills-mcp-backend {args_str}"
+        # Build command as a list for cross-platform exec (avoids shell quoting issues)
+        cmd = ["uvx", "claude-skills-mcp-backend"] + backend_args
+
+        # Pass PYTHONUNBUFFERED via environment instead of shell prefix (Windows-safe)
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
 
         logger.debug(f"Backend command: {cmd}")
 
         try:
-            # Use shell for simple reliable execution
-            # start_new_session=True ensures process group for proper cleanup
-            self.backend_process = await asyncio.create_subprocess_shell(
-                cmd,
+            # Platform-specific subprocess flags
+            kwargs: dict = dict(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                start_new_session=True,
+                env=env,
             )
+            if _IS_WINDOWS:
+                # CREATE_NEW_PROCESS_GROUP allows sending CTRL_BREAK_EVENT for cleanup
+                kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                # start_new_session=True ensures process group for proper cleanup
+                kwargs["start_new_session"] = True
+
+            self.backend_process = await asyncio.create_subprocess_exec(*cmd, **kwargs)
 
             # Start background tasks to consume backend output streams
             # This prevents broken pipe errors from pipes filling up
@@ -134,7 +146,7 @@ class BackendManager:
                     logger.info(f"Stream {prefix} closed after {line_count} lines")
                     break
                 # Relay backend logs to frontend logger (visible in Cursor)
-                decoded = line.decode("utf-8").rstrip()
+                decoded = line.decode("utf-8", errors="replace").rstrip()
                 if decoded:
                     line_count += 1
                     logger.info(f"[{prefix}] {decoded}")
@@ -167,7 +179,7 @@ class BackendManager:
                         health_data = response.json()
                         skills_loaded = health_data.get("skills_loaded", 0)
                         loading_complete = health_data.get("loading_complete", False)
-                        
+
                         if loading_complete and skills_loaded > 0:
                             logger.info(f"Backend health check passed ({skills_loaded} skills loaded)")
                             return
@@ -176,6 +188,7 @@ class BackendManager:
                             last_error = "Backend loaded but no skills found (check config/network)"
                         else:
                             # Show progress
+                            elapsed = asyncio.get_event_loop().time() - start_time
                             last_error = f"Loading: {skills_loaded} skills so far..."
                             if int(elapsed) % 30 == 0 and int(elapsed) > 0:
                                 logger.info(f"Still loading skills... ({skills_loaded} loaded so far)")
@@ -223,25 +236,46 @@ class BackendManager:
         # Start fresh backend
         logger.info("Starting fresh backend via uvx (auto-downloads if needed)...")
         return await self.start_backend(backend_args)
-    
+
     def _kill_process_on_port(self, port: int) -> None:
         """Kill any process listening on the given port.
-        
+
+        Uses platform-appropriate commands (netstat/taskkill on Windows,
+        lsof/kill on Unix).
+
         Parameters
         ----------
         port : int
             Port number to check and kill.
         """
         try:
-            import subprocess
             logger.info(f"Attempting to kill any process on port {port}")
-            # Find and kill process on port
-            subprocess.run(
-                f"lsof -ti :{port} | xargs kill -9 2>/dev/null || true",
-                shell=True,
-                timeout=2,
-                capture_output=True
-            )
+            if _IS_WINDOWS:
+                # Windows: find PID with netstat, then kill with taskkill
+                result = subprocess.run(
+                    ["netstat", "-ano"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                for line in result.stdout.splitlines():
+                    if f":{port} " in line and "LISTENING" in line:
+                        parts = line.split()
+                        pid = parts[-1]
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", pid],
+                            capture_output=True,
+                            timeout=5,
+                        )
+                        logger.info(f"Killed PID {pid} on port {port}")
+            else:
+                # Unix: lsof-based one-liner
+                subprocess.run(
+                    f"lsof -ti :{port} | xargs kill -9 2>/dev/null || true",
+                    shell=True,
+                    timeout=2,
+                    capture_output=True,
+                )
             logger.info(f"Cleanup attempt completed for port {port}")
         except Exception as e:
             logger.debug(f"Error during port cleanup: {e}")
@@ -249,16 +283,17 @@ class BackendManager:
     async def cleanup(self) -> None:
         """Cleanup backend process and all child processes."""
         if self.backend_process:
-            # Kill backend process group
             try:
-                logger.info(f"Terminating backend process group (PID: {self.backend_process.pid})")
-                
+                logger.info(f"Terminating backend process (PID: {self.backend_process.pid})")
+
+                # Use cross-platform process termination methods.
+                # On Unix these send SIGTERM/SIGKILL; on Windows they call
+                # TerminateProcess — no os.killpg() or POSIX signals needed.
                 try:
-                    # Kill the whole process group (negative PID)
-                    os.killpg(os.getpgid(self.backend_process.pid), signal.SIGTERM)
-                except ProcessLookupError:
+                    self.backend_process.terminate()
+                except (ProcessLookupError, OSError):
                     pass
-                
+
                 # Wait for process to terminate (with timeout)
                 try:
                     await asyncio.wait_for(self.backend_process.wait(), timeout=5.0)
@@ -267,9 +302,9 @@ class BackendManager:
                     # Force kill if it doesn't exit
                     logger.warning("Backend didn't exit gracefully, force killing")
                     try:
-                        os.killpg(os.getpgid(self.backend_process.pid), signal.SIGKILL)
-                    except ProcessLookupError:
+                        self.backend_process.kill()
+                    except (ProcessLookupError, OSError):
                         pass
-                    
+
             except Exception as e:
                 logger.warning(f"Error during backend cleanup: {e}")
