@@ -39,6 +39,10 @@ This MCP server enables any MCP-compatible AI assistant to intelligently search 
 - **Fast & Local**: No API keys needed, with automatic GitHub caching
 - **Configurable**: Customize sources, models, and content limits
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/k-dense-ai-claude-skills-mcp).
+
 ## Quick Start
 
 ### For Cursor Users
