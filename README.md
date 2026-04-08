@@ -1,5 +1,9 @@
 # Claude Skills MCP Server
 
+> **This MCP server is no longer hosted or maintained.** Agent Skills have been natively adopted by all major AI platforms — Cursor, Windsurf, Claude Code, Copilot, and others now support skills out of the box. There is no longer a need for an MCP bridge to deliver skills to your coding assistant. Thank you to everyone who used and contributed to this project!
+
+---
+
 [![Tests](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
