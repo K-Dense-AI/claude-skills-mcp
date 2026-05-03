@@ -62,6 +62,27 @@ Add through the [Cursor Directory](https://cursor.directory/mcp/claude-skills-mc
 
 The frontend starts instantly and displays tools, automatically downloading and starting the backend in the background (~60-120s due to RAG dependencies, one-time). Subsequent uses are instant.
 
+### For Windsurf Users
+
+Add `claude-skills-mcp` to Windsurf's MCP config at `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "claude-skills-mcp": {
+      "command": "uvx",
+      "args": ["claude-skills-mcp"]
+    }
+  }
+}
+```
+
+After adding the config, restart Windsurf. The skill server will be available automatically.
+
+Skills are accessed via Windsurf's **Cascade panel** using MCP tool calls (`find_helpful_skills`, `read_skill_document`, `list_skills`).
+
+> **Note:** Windsurf does not support Claude Code's `/skill-name` slash command syntax. Use the MCP tool interface in Cascade instead.
+
 ### Using uvx (Standalone)
 
 Run the server with default configuration:
