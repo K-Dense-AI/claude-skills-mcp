@@ -129,3 +129,86 @@ def test_load_from_local_with_home_expansion(path_variation):
     # but it shouldn't crash
     skills = load_from_local(path_variation)
     assert isinstance(skills, list)
+
+
+def test_load_from_local_excludes_node_modules(tmp_path):
+    """SKILL.md files under node_modules/ must be excluded by default."""
+    # Real skill at the root
+    (tmp_path / "real-skill").mkdir()
+    (tmp_path / "real-skill" / "SKILL.md").write_text(
+        "---\nname: Real Skill\ndescription: A real user skill\n---\n# Real\n"
+    )
+
+    # Noise: SKILL.md bundled inside node_modules (e.g. dotenv's example skill)
+    nested = tmp_path / "some-project" / "node_modules" / "dotenv" / "skills" / "dotenv"
+    nested.mkdir(parents=True)
+    (nested / "SKILL.md").write_text(
+        "---\nname: dotenv\ndescription: third-party noise\n---\n# noise\n"
+    )
+
+    skills = load_from_local(str(tmp_path))
+    names = {s.name for s in skills}
+
+    assert "Real Skill" in names
+    assert "dotenv" not in names, "node_modules SKILL.md must be excluded"
+
+
+def test_load_from_local_excludes_venv(tmp_path):
+    """SKILL.md files under venv/site-packages must be excluded by default."""
+    (tmp_path / "real-skill").mkdir()
+    (tmp_path / "real-skill" / "SKILL.md").write_text(
+        "---\nname: Real Skill\ndescription: A real skill\n---\n# Real\n"
+    )
+
+    # Noise: SKILL.md inside venv/site-packages (e.g. typer's bundled skill)
+    nested = (
+        tmp_path / "some-project" / "venv" / "lib" / "python3.12"
+        / "site-packages" / "typer" / ".agents" / "skills" / "typer"
+    )
+    nested.mkdir(parents=True)
+    (nested / "SKILL.md").write_text(
+        "---\nname: typer\ndescription: bundled noise\n---\n# noise\n"
+    )
+
+    skills = load_from_local(str(tmp_path))
+    names = {s.name for s in skills}
+
+    assert "Real Skill" in names
+    assert "typer" not in names, "venv/site-packages SKILL.md must be excluded"
+
+
+def test_load_from_local_custom_exclude_patterns(tmp_path):
+    """Custom exclude_patterns override the defaults."""
+    (tmp_path / "good").mkdir()
+    (tmp_path / "good" / "SKILL.md").write_text(
+        "---\nname: Good\ndescription: keep me\n---\n# Good\n"
+    )
+    (tmp_path / "bad").mkdir()
+    (tmp_path / "bad" / "SKILL.md").write_text(
+        "---\nname: Bad\ndescription: drop me\n---\n# Bad\n"
+    )
+
+    skills = load_from_local(str(tmp_path), config={"exclude_patterns": ["**/bad/**"]})
+    names = {s.name for s in skills}
+
+    assert names == {"Good"}
+
+
+def test_load_from_local_empty_exclude_patterns_disables_filter(tmp_path):
+    """An empty exclude_patterns list disables filtering (opt-out)."""
+    (tmp_path / "real-skill").mkdir()
+    (tmp_path / "real-skill" / "SKILL.md").write_text(
+        "---\nname: Real Skill\ndescription: A real skill\n---\n# Real\n"
+    )
+    nested = tmp_path / "some-project" / "node_modules" / "dotenv" / "skills" / "dotenv"
+    nested.mkdir(parents=True)
+    (nested / "SKILL.md").write_text(
+        "---\nname: dotenv\ndescription: would normally be excluded\n---\n# noise\n"
+    )
+
+    skills = load_from_local(str(tmp_path), config={"exclude_patterns": []})
+    names = {s.name for s in skills}
+
+    # With no exclude_patterns, both must be loaded (legacy behavior)
+    assert "Real Skill" in names
+    assert "dotenv" in names
