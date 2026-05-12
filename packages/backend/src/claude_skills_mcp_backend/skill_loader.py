@@ -1,6 +1,7 @@
 """Skill loading and parsing functionality."""
 
 import base64
+import fnmatch
 import hashlib
 import json
 import logging
@@ -15,6 +16,27 @@ from urllib.parse import urlparse
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+# Default glob patterns excluded when scanning local skill sources.
+# These cover SKILL.md files bundled inside package directories (npm/pip), which
+# almost always represent third-party noise rather than user-authored skills.
+# Users can override per-source via `exclude_patterns` in their config.
+DEFAULT_LOCAL_EXCLUDE_PATTERNS: list[str] = [
+    "**/node_modules/**",
+    "**/venv/**",
+    "**/.venv/**",
+    "**/site-packages/**",
+    "**/.git/**",
+]
+
+
+def _is_excluded_path(skill_file: Path, patterns: list[str]) -> bool:
+    """Return True if the SKILL.md path matches any glob exclude pattern."""
+    if not patterns:
+        return False
+    path_str = str(skill_file)
+    return any(fnmatch.fnmatch(path_str, pattern) for pattern in patterns)
 
 
 class Skill:
@@ -362,6 +384,7 @@ def load_from_local(path: str, config: dict[str, Any] | None = None) -> list[Ski
         "allowed_image_extensions", [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]
     )
     max_image_size = config.get("max_image_size_bytes", 5242880)
+    exclude_patterns = config.get("exclude_patterns", DEFAULT_LOCAL_EXCLUDE_PATTERNS)
 
     try:
         local_path = Path(path).expanduser().resolve()
@@ -374,8 +397,19 @@ def load_from_local(path: str, config: dict[str, Any] | None = None) -> list[Ski
             logger.warning(f"Local path {path} is not a directory, skipping")
             return skills
 
-        # Find all SKILL.md files recursively
-        skill_files = list(local_path.rglob("SKILL.md"))
+        # Find all SKILL.md files recursively, excluding noise directories
+        # (node_modules / venv / etc) by default. See DEFAULT_LOCAL_EXCLUDE_PATTERNS.
+        all_skill_files = list(local_path.rglob("SKILL.md"))
+        skill_files = [
+            p for p in all_skill_files
+            if not _is_excluded_path(p, exclude_patterns)
+        ]
+        excluded_count = len(all_skill_files) - len(skill_files)
+        if excluded_count > 0:
+            logger.info(
+                f"Excluded {excluded_count} SKILL.md file(s) from {path} "
+                f"matching exclude_patterns"
+            )
 
         for skill_file in skill_files:
             try:

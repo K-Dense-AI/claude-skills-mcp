@@ -16,6 +16,14 @@
       "comment": "Your custom local skills (optional - directory doesn't need to exist)"
     }
   ],
+  "exclude_patterns": [
+    "**/node_modules/**",
+    "**/venv/**",
+    "**/.venv/**",
+    "**/site-packages/**",
+    "**/.git/**"
+  ],
+  "comment_exclude_patterns": "Glob patterns excluded when scanning local skill sources. Defaults filter out SKILL.md files bundled inside npm/pip packages. Set to [] to disable filtering.",
   "embedding_model": "all-MiniLM-L6-v2",
   "default_top_k": 3,
   "max_skill_content_chars": null,
