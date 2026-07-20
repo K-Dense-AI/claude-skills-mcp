@@ -284,10 +284,14 @@ async def initialize_backend(config_path: str | None = None, verbose: bool = Fal
                     )
 
                     # For simplicity, reload all skills if any changed
-                    # This clears the index and reloads everything
+                    # This clears the index and reloads everything.
+                    # force_refresh bypasses the snapshot cache so the
+                    # detected changes actually land
                     logger.info("Reloading all skills...")
                     new_skills = load_all_skills(
-                        skill_sources=config["skill_sources"], config=config
+                        skill_sources=config["skill_sources"],
+                        config=config,
+                        force_refresh=True,
                     )
 
                     # Re-index all skills

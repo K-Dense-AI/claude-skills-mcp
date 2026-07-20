@@ -2,9 +2,12 @@
 
 import base64
 import hashlib
+import io
 import json
 import logging
 import re
+import shutil
+import tarfile
 import tempfile
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -13,6 +16,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -137,20 +141,37 @@ def parse_skill_md(content: str, source: str) -> Skill | None:
         frontmatter_text = frontmatter_match.group(1)
         markdown_body = frontmatter_match.group(2)
 
-        # Extract name and description from YAML frontmatter
-        name_match = re.search(r"^name:\s*(.+)$", frontmatter_text, re.MULTILINE)
-        desc_match = re.search(r"^description:\s*(.+)$", frontmatter_text, re.MULTILINE)
+        # Parse frontmatter as YAML - handles multiline scalars (>, |),
+        # quoting, and other YAML syntax a line-based regex cannot
+        name: str | None = None
+        description: str | None = None
+        try:
+            frontmatter = yaml.safe_load(frontmatter_text)
+            if isinstance(frontmatter, dict):
+                if frontmatter.get("name") is not None:
+                    name = str(frontmatter["name"]).strip()
+                if frontmatter.get("description") is not None:
+                    description = str(frontmatter["description"]).strip()
+        except yaml.YAMLError as e:
+            logger.debug(
+                f"YAML parse failed for {source}, falling back to regex: {e}"
+            )
 
-        if not name_match or not desc_match:
+        # Regex fallback for frontmatter that is not valid YAML
+        if not name:
+            name_match = re.search(r"^name:\s*(.+)$", frontmatter_text, re.MULTILINE)
+            if name_match:
+                name = name_match.group(1).strip().strip("\"'")
+        if not description:
+            desc_match = re.search(
+                r"^description:\s*(.+)$", frontmatter_text, re.MULTILINE
+            )
+            if desc_match:
+                description = desc_match.group(1).strip().strip("\"'")
+
+        if not name or not description:
             logger.warning(f"Missing name or description in skill from {source}")
             return None
-
-        name = name_match.group(1).strip()
-        description = desc_match.group(1).strip()
-
-        # Remove quotes if present
-        name = name.strip("\"'")
-        description = description.strip("\"'")
 
         return Skill(
             name=name,
@@ -408,318 +429,302 @@ def load_from_local(path: str, config: dict[str, Any] | None = None) -> list[Ski
     return skills
 
 
-def _get_document_cache_dir() -> Path:
-    """Get document cache directory.
-
-    Returns
-    -------
-    Path
-        Path to document cache directory.
-    """
-    cache_dir = Path(tempfile.gettempdir()) / "claude_skills_mcp_cache" / "documents"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
-
-
-def _get_cache_path(url: str, branch: str) -> Path:
-    """Get cache file path for a GitHub repository.
+def parse_github_source_url(
+    url: str, subpath: str = ""
+) -> tuple[str, str, str | None, str] | None:
+    """Parse a GitHub URL into its components.
 
     Parameters
     ----------
     url : str
-        GitHub repository URL.
-    branch : str
-        Branch name.
+        GitHub repository URL. Can be:
+        - Base repo URL: https://github.com/owner/repo
+        - URL with branch and subpath: https://github.com/owner/repo/tree/branch/subpath
+    subpath : str, optional
+        Explicit subpath. Takes precedence over a subpath embedded in the URL.
+
+    Returns
+    -------
+    tuple[str, str, str | None, str] | None
+        (owner, repo, branch, subpath) where branch is None when the URL does
+        not pin one, or None if the URL is not a valid GitHub repo URL.
+    """
+    parsed = urlparse(url)
+    path_parts = parsed.path.strip("/").split("/")
+
+    if len(path_parts) < 2 or not path_parts[0] or not path_parts[1]:
+        return None
+
+    owner = path_parts[0]
+    repo = path_parts[1]
+    branch: str | None = None
+
+    # URL may contain /tree/{branch}/{subpath}
+    # e.g., https://github.com/owner/repo/tree/main/subdirectory
+    if len(path_parts) > 3 and path_parts[2] == "tree":
+        branch = path_parts[3]
+        if len(path_parts) > 4 and not subpath:
+            subpath = "/".join(path_parts[4:])
+
+    return owner, repo, branch, subpath
+
+
+def _get_repo_cache_dir() -> Path:
+    """Get repository snapshot cache directory.
 
     Returns
     -------
     Path
-        Path to cache file.
+        Path to the snapshot cache directory.
     """
-    cache_dir = Path(tempfile.gettempdir()) / "claude_skills_mcp_cache"
-    cache_dir.mkdir(exist_ok=True)
-
-    # Create hash-based filename
-    cache_key = f"{url}_{branch}"
-    hash_key = hashlib.md5(cache_key.encode()).hexdigest()
-
-    return cache_dir / f"{hash_key}.json"
+    cache_dir = Path(tempfile.gettempdir()) / "claude_skills_mcp_cache" / "repos"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
-def _load_from_cache(
-    cache_path: Path, max_age_hours: int = 24
-) -> dict[str, Any] | None:
-    """Load cached GitHub API response if available and not expired.
+def _snapshot_dir_for(owner: str, repo: str, ref: str) -> Path:
+    """Get the cache directory for a specific repo snapshot."""
+    key = hashlib.md5(f"{owner}/{repo}@{ref}".encode()).hexdigest()
+    return _get_repo_cache_dir() / key
 
-    Parameters
-    ----------
-    cache_path : Path
-        Path to cache file.
-    max_age_hours : int, optional
-        Maximum cache age in hours, by default 24.
 
-    Returns
-    -------
-    dict[str, Any] | None
-        Cached tree data or None if cache is invalid/expired.
-    """
-    if not cache_path.exists():
+def _load_cached_snapshot(
+    owner: str, repo: str, ref: str, max_age_hours: int
+) -> Path | None:
+    """Return the extracted snapshot root if a valid cached copy exists."""
+    snapshot_dir = _snapshot_dir_for(owner, repo, ref)
+    meta_file = snapshot_dir / "meta.json"
+
+    if not meta_file.exists():
         return None
 
     try:
-        with open(cache_path, "r") as f:
-            cache_data = json.load(f)
+        meta = json.loads(meta_file.read_text())
+        cached_time = datetime.fromisoformat(meta["timestamp"])
+        root = snapshot_dir / meta["root"]
+        if datetime.now() - cached_time <= timedelta(hours=max_age_hours) and root.is_dir():
+            logger.info(f"Using cached snapshot of {owner}/{repo}@{ref}")
+            return root
+    except Exception as e:
+        logger.warning(f"Invalid snapshot metadata for {owner}/{repo}@{ref}: {e}")
 
-        # Check if cache is expired
-        cached_time = datetime.fromisoformat(cache_data["timestamp"])
-        if datetime.now() - cached_time > timedelta(hours=max_age_hours):
-            logger.info(f"Cache expired for {cache_path}")
+    return None
+
+
+def _fetch_tarball_bytes(owner: str, repo: str, ref: str) -> bytes:
+    """Download a repository tarball from GitHub codeload.
+
+    A tarball download is a single request that does not count against the
+    GitHub API rate limit, unlike per-file raw fetches plus tree API calls.
+    codeload accepts branch names, tags, and commit SHAs as the ref.
+
+    Raises
+    ------
+    httpx.HTTPStatusError
+        If the download fails (e.g., 404 for a missing ref).
+    """
+    tarball_url = f"https://codeload.github.com/{owner}/{repo}/tar.gz/{ref}"
+    with httpx.Client(timeout=120.0, follow_redirects=True) as client:
+        response = client.get(tarball_url)
+        response.raise_for_status()
+        return response.content
+
+
+def _extract_snapshot(owner: str, repo: str, ref: str, tarball: bytes) -> Path | None:
+    """Extract a tarball into the snapshot cache and return its root."""
+    snapshot_dir = _snapshot_dir_for(owner, repo, ref)
+
+    try:
+        if snapshot_dir.exists():
+            shutil.rmtree(snapshot_dir)
+        snapshot_dir.mkdir(parents=True)
+
+        with tarfile.open(fileobj=io.BytesIO(tarball), mode="r:gz") as tar:
+            # The "data" filter blocks path traversal and special files
+            tar.extractall(snapshot_dir, filter="data")
+
+        # GitHub tarballs contain a single top-level directory ({repo}-{ref})
+        roots = [p for p in snapshot_dir.iterdir() if p.is_dir()]
+        if len(roots) != 1:
+            logger.error(f"Unexpected tarball layout for {owner}/{repo}@{ref}")
             return None
 
-        logger.info(f"Using cached GitHub API response from {cache_path}")
-        return cache_data["tree_data"]
+        root = roots[0]
+        meta_file = snapshot_dir / "meta.json"
+        meta_file.write_text(
+            json.dumps({"timestamp": datetime.now().isoformat(), "root": root.name})
+        )
+        logger.info(f"Extracted snapshot of {owner}/{repo}@{ref} to {root}")
+        return root
 
     except Exception as e:
-        logger.warning(f"Failed to load cache from {cache_path}: {e}")
+        logger.error(f"Error extracting tarball for {owner}/{repo}@{ref}: {e}")
         return None
 
 
-def _save_to_cache(cache_path: Path, tree_data: dict[str, Any]) -> None:
-    """Save GitHub API response to cache.
-
-    Parameters
-    ----------
-    cache_path : Path
-        Path to cache file.
-    tree_data : dict[str, Any]
-        GitHub tree data to cache.
-    """
-    try:
-        cache_data = {
-            "timestamp": datetime.now().isoformat(),
-            "tree_data": tree_data,
-        }
-        with open(cache_path, "w") as f:
-            json.dump(cache_data, f)
-        logger.info(f"Saved GitHub API response to cache: {cache_path}")
-    except Exception as e:
-        logger.warning(f"Failed to save cache to {cache_path}: {e}")
-
-
-def _get_document_metadata_from_github(
+def _ensure_repo_snapshot(
     owner: str,
     repo: str,
-    branch: str,
-    skill_dir_path: str,
-    tree_data: dict[str, Any],
-    text_extensions: list[str],
-    image_extensions: list[str],
-) -> dict[str, dict[str, Any]]:
-    """Get document metadata from GitHub without fetching content.
+    branch: str | None,
+    force_refresh: bool = False,
+    max_age_hours: int = 24,
+) -> tuple[Path, str] | tuple[None, None]:
+    """Get an extracted local snapshot of a GitHub repository.
 
     Parameters
     ----------
     owner : str
-        GitHub repository owner.
+        Repository owner.
     repo : str
-        GitHub repository name.
-    branch : str
-        Branch name.
-    skill_dir_path : str
-        Path to the skill directory within the repo.
-    tree_data : dict[str, Any]
-        GitHub API tree data for the repository.
-    text_extensions : list[str]
-        List of allowed text file extensions.
-    image_extensions : list[str]
-        List of allowed image file extensions.
+        Repository name.
+    branch : str | None
+        Ref to download (branch, tag, or SHA). None tries 'main' then 'master'.
+    force_refresh : bool, optional
+        Skip the cached snapshot and re-download, by default False.
+    max_age_hours : int, optional
+        Maximum snapshot age before re-download, by default 24.
+
+    Returns
+    -------
+    tuple[Path, str] | tuple[None, None]
+        (snapshot_root, resolved_ref), or (None, None) on failure.
+    """
+    candidates = [branch] if branch else ["main", "master"]
+
+    if not force_refresh:
+        for ref in candidates:
+            root = _load_cached_snapshot(owner, repo, ref, max_age_hours)
+            if root is not None:
+                return root, ref
+
+    for ref in candidates:
+        try:
+            logger.info(f"Downloading tarball of {owner}/{repo}@{ref}...")
+            tarball = _fetch_tarball_bytes(owner, repo, ref)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404 and branch is None:
+                logger.info(f"Ref '{ref}' not found for {owner}/{repo}, trying next")
+                continue
+            logger.error(f"HTTP error downloading {owner}/{repo}@{ref}: {e}")
+            return None, None
+        except Exception as e:
+            logger.error(f"Error downloading {owner}/{repo}@{ref}: {e}")
+            return None, None
+
+        root = _extract_snapshot(owner, repo, ref, tarball)
+        if root is None:
+            return None, None
+        return root, ref
+
+    logger.error(
+        f"No usable ref found for {owner}/{repo} (tried: {', '.join(candidates)})"
+    )
+    return None, None
+
+
+def _get_document_metadata_from_snapshot(
+    skill_dir: Path,
+    snapshot_root: Path,
+    owner: str,
+    repo: str,
+    ref: str,
+    text_extensions: list[str],
+    image_extensions: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Build document metadata for a skill directory inside a repo snapshot.
+
+    Content is not loaded here - documents are read lazily from the local
+    snapshot when accessed (progressive disclosure without network calls).
 
     Returns
     -------
     dict[str, dict[str, Any]]
         Dictionary mapping relative paths to document metadata (no content).
     """
-    documents = {}
+    documents: dict[str, dict[str, Any]] = {}
 
-    # Find all files in the skill directory (but not SKILL.md itself)
-    for item in tree_data.get("tree", []):
-        if item["type"] != "blob":
+    for file_path in sorted(skill_dir.rglob("*")):
+        if file_path.name == "SKILL.md" or file_path.is_dir():
             continue
 
-        item_path = item["path"]
+        rel_path = file_path.relative_to(skill_dir).as_posix()
+        repo_path = file_path.relative_to(snapshot_root).as_posix()
 
-        # Skip if not in the skill directory
-        if not item_path.startswith(skill_dir_path):
-            continue
-
-        # Skip SKILL.md itself
-        if item_path.endswith("/SKILL.md") or item_path == f"{skill_dir_path}/SKILL.md":
-            continue
-
-        # Calculate relative path from skill directory
-        if skill_dir_path:
-            rel_path = item_path[len(skill_dir_path) :].lstrip("/")
+        if _is_text_file(file_path, text_extensions):
+            doc_type = "text"
+        elif _is_image_file(file_path, image_extensions):
+            doc_type = "image"
         else:
-            rel_path = item_path
-
-        if not rel_path:
             continue
 
-        # Check file extension
-        file_ext = Path(item_path).suffix.lower()
-
-        # Store metadata for text and image files
-        if file_ext in text_extensions:
-            documents[rel_path] = {
-                "type": "text",
-                "size": item.get("size", 0),
-                "url": f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{item_path}",
-                "fetched": False,
-            }
-        elif file_ext in image_extensions:
-            documents[rel_path] = {
-                "type": "image",
-                "size": item.get("size", 0),
-                "url": f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{item_path}",
-                "fetched": False,
-            }
+        documents[rel_path] = {
+            "type": doc_type,
+            "size": file_path.stat().st_size,
+            "url": f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{repo_path}",
+            "fetched": False,
+        }
 
     return documents
 
 
-def _create_document_fetcher(
-    owner: str,
-    repo: str,
-    branch: str,
-    skill_dir_path: str,
+def _create_snapshot_document_fetcher(
+    skill_dir: Path,
+    documents: dict[str, dict[str, Any]],
     text_extensions: list[str],
     image_extensions: list[str],
     max_image_size: int,
 ) -> Callable:
-    """Create a closure that fetches documents on-demand with disk caching.
-
-    Parameters
-    ----------
-    owner : str
-        GitHub repository owner.
-    repo : str
-        GitHub repository name.
-    branch : str
-        Branch name.
-    skill_dir_path : str
-        Path to the skill directory within the repo.
-    text_extensions : list[str]
-        List of allowed text file extensions.
-    image_extensions : list[str]
-        List of allowed image file extensions.
-    max_image_size : int
-        Maximum image file size in bytes.
+    """Create a fetcher that reads documents from the local snapshot on demand.
 
     Returns
     -------
     callable
-        Function that fetches a document by path.
+        Function that loads a document by relative path.
     """
-    cache_dir = _get_document_cache_dir()
 
     def fetch_document(doc_path: str) -> dict[str, Any] | None:
-        """Fetch a single document with local caching.
-
-        Parameters
-        ----------
-        doc_path : str
-            Relative path to the document.
-
-        Returns
-        -------
-        dict[str, Any] | None
-            Document content with metadata, or None if fetch failed.
-        """
-        # Build full GitHub path
-        if skill_dir_path:
-            full_path = f"{skill_dir_path}/{doc_path}"
-        else:
-            full_path = doc_path
-
-        url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{full_path}"
-
-        # Check disk cache first
-        cache_key = hashlib.md5(url.encode()).hexdigest()
-        cache_file = cache_dir / f"{cache_key}.cache"
-
-        if cache_file.exists():
-            try:
-                with open(cache_file, "r", encoding="utf-8") as f:
-                    cached_data = json.load(f)
-                    logger.debug(f"Using cached document: {doc_path}")
-                    return cached_data
-            except Exception as e:
-                logger.warning(f"Failed to load cache for {doc_path}: {e}")
-
-        # Fetch from GitHub
-        try:
-            file_ext = Path(doc_path).suffix.lower()
-
-            with httpx.Client(timeout=30.0) as client:
-                response = client.get(url)
-                response.raise_for_status()
-
-                # Process based on file type
-                if file_ext in image_extensions:
-                    # Image file
-                    image_data = response.content
-                    file_size = len(image_data)
-
-                    if file_size > max_image_size:
-                        content = {
-                            "type": "image",
-                            "size": file_size,
-                            "size_exceeded": True,
-                            "url": url,
-                            "fetched": True,
-                        }
-                    else:
-                        base64_content = base64.b64encode(image_data).decode("utf-8")
-                        content = {
-                            "type": "image",
-                            "content": base64_content,
-                            "size": file_size,
-                            "url": url,
-                            "fetched": True,
-                        }
-                elif file_ext in text_extensions:
-                    # Text file
-                    text_content = response.text
-                    content = {
-                        "type": "text",
-                        "content": text_content,
-                        "size": len(text_content),
-                        "fetched": True,
-                    }
-                else:
-                    return None
-
-                # Save to disk cache
-                try:
-                    with open(cache_file, "w", encoding="utf-8") as f:
-                        json.dump(content, f)
-                    logger.debug(f"Cached document: {doc_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to cache document {doc_path}: {e}")
-
-                return content
-
-        except Exception as e:
-            logger.error(f"Failed to fetch document {doc_path} from {url}: {e}")
+        meta = documents.get(doc_path)
+        if meta is None:
             return None
+
+        file_path = (skill_dir / doc_path).resolve()
+        try:
+            file_path.relative_to(skill_dir.resolve())
+        except ValueError:
+            logger.warning(f"Refusing to read outside skill directory: {doc_path}")
+            return None
+
+        if not file_path.is_file():
+            logger.warning(f"Document missing from snapshot: {doc_path}")
+            return None
+
+        if _is_text_file(file_path, text_extensions):
+            doc = _load_text_file(file_path)
+        elif _is_image_file(file_path, image_extensions):
+            doc = _load_image_file(file_path, max_image_size, url=meta.get("url"))
+        else:
+            return None
+
+        if doc:
+            doc["fetched"] = True
+            if "url" in meta:
+                doc.setdefault("url", meta["url"])
+        return doc
 
     return fetch_document
 
 
 def load_from_github(
-    url: str, subpath: str = "", config: dict[str, Any] | None = None
+    url: str,
+    subpath: str = "",
+    config: dict[str, Any] | None = None,
+    force_refresh: bool = False,
 ) -> list[Skill]:
-    """Load skills from a GitHub repository.
+    """Load skills from a GitHub repository via a tarball snapshot.
+
+    The whole repository is downloaded as one tarball (a single request that
+    does not count against the GitHub API rate limit), extracted to a local
+    cache, and skills plus their documents are served from that snapshot.
 
     Parameters
     ----------
@@ -732,6 +737,8 @@ def load_from_github(
         If the URL already contains a subpath, this parameter is ignored.
     config : dict[str, Any] | None
         Configuration dictionary with document loading settings.
+    force_refresh : bool, optional
+        Re-download the repository even if a fresh snapshot is cached.
 
     Returns
     -------
@@ -740,7 +747,6 @@ def load_from_github(
     """
     skills: list[Skill] = []
 
-    # Get configuration settings
     if config is None:
         config = {}
 
@@ -754,233 +760,90 @@ def load_from_github(
     )
     max_image_size = config.get("max_image_size_bytes", 5242880)
 
-    try:
-        # Parse GitHub URL to extract owner, repo, branch, and subpath
-        parsed = urlparse(url)
-        path_parts = parsed.path.strip("/").split("/")
+    parsed = parse_github_source_url(url, subpath)
+    if parsed is None:
+        logger.error(f"Invalid GitHub URL: {url}")
+        return skills
+    owner, repo, branch, subpath = parsed
 
-        if len(path_parts) < 2:
-            logger.error(f"Invalid GitHub URL: {url}")
-            return skills
+    logger.info(
+        f"Loading skills from GitHub: {owner}/{repo}"
+        + (f" (branch: {branch})" if branch else "")
+        + (f" (subpath: {subpath})" if subpath else "")
+    )
 
-        owner = path_parts[0]
-        repo = path_parts[1]
-        branch = "main"  # Default branch
+    snapshot_root, ref = _ensure_repo_snapshot(
+        owner, repo, branch, force_refresh=force_refresh
+    )
+    if snapshot_root is None:
+        return skills
 
-        # Check if URL contains /tree/{branch}/{subpath} format
-        # e.g., https://github.com/owner/repo/tree/main/subdirectory
-        if len(path_parts) > 3 and path_parts[2] == "tree":
-            branch = path_parts[3]
-            # Extract subpath from URL if provided (overrides subpath parameter)
-            if len(path_parts) > 4:
-                url_subpath = "/".join(path_parts[4:])
-                if not subpath:  # Only use URL subpath if not explicitly provided
-                    subpath = url_subpath
-                    logger.info(f"Extracted subpath from URL: {subpath}")
-
-        if subpath:
-            logger.info(
-                f"Loading skills from GitHub: {owner}/{repo} (branch: {branch}, subpath: {subpath})"
-            )
+    # Collect SKILL.md files, respecting the subpath filter
+    if subpath:
+        subpath_dir = snapshot_root / subpath
+        if subpath_dir.is_dir():
+            skill_files = sorted(subpath_dir.rglob("SKILL.md"))
         else:
-            logger.info(
-                f"Loading skills from GitHub: {owner}/{repo} (branch: {branch})"
+            # Prefix-match fallback (subpath may be a partial path)
+            skill_files = sorted(
+                p
+                for p in snapshot_root.rglob("SKILL.md")
+                if p.relative_to(snapshot_root).as_posix().startswith(subpath)
             )
+            if not skill_files:
+                logger.warning(f"Subpath '{subpath}' not found in {owner}/{repo}@{ref}")
+    else:
+        skill_files = sorted(snapshot_root.rglob("SKILL.md"))
 
-        # Get repository tree (with caching to avoid API limits)
-        cache_path = _get_cache_path(url, branch)
-        tree_data = _load_from_cache(cache_path)
+    for skill_file in skill_files:
+        try:
+            content = skill_file.read_text(encoding="utf-8")
+            repo_rel = skill_file.relative_to(snapshot_root).as_posix()
+            source = f"https://github.com/{owner}/{repo}/tree/{ref}/{repo_rel}"
 
-        if tree_data is None:
-            api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
-
-            with httpx.Client(timeout=30.0) as client:
-                response = client.get(api_url)
-                response.raise_for_status()
-                tree_data = response.json()
-
-            # Save to cache
-            _save_to_cache(cache_path, tree_data)
-
-        # Find all SKILL.md files
-        skill_paths = []
-        for item in tree_data.get("tree", []):
-            if item["type"] == "blob" and item["path"].endswith("SKILL.md"):
-                # Apply subpath filter if provided
-                if subpath:
-                    if item["path"].startswith(subpath):
-                        skill_paths.append(item["path"])
-                else:
-                    skill_paths.append(item["path"])
-
-        # Load each SKILL.md file
-        for skill_path in skill_paths:
-            try:
-                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{skill_path}"
-
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.get(raw_url)
-                    response.raise_for_status()
-                    content = response.text
-
-                source = f"{url}/tree/{branch}/{skill_path}"
-                skill = parse_skill_md(content, source)
-
-                if skill:
-                    # Load additional documents from the skill directory
-                    if load_documents:
-                        # Get the skill directory path (parent of SKILL.md)
-                        skill_dir_path = str(Path(skill_path).parent)
-                        if skill_dir_path == ".":
-                            skill_dir_path = ""
-
-                        # Get metadata only (lazy loading)
-                        documents = _get_document_metadata_from_github(
-                            owner,
-                            repo,
-                            branch,
-                            skill_dir_path,
-                            tree_data,
-                            text_extensions,
-                            image_extensions,
-                        )
-
-                        # Create document fetcher for lazy loading
-                        fetcher = _create_document_fetcher(
-                            owner,
-                            repo,
-                            branch,
-                            skill_dir_path,
-                            text_extensions,
-                            image_extensions,
-                            max_image_size,
-                        )
-
-                        skill.documents = documents
-                        skill._document_fetcher = fetcher
-
-                        if documents:
-                            logger.info(
-                                f"Found {len(documents)} additional documents for skill: {skill.name}"
-                            )
-
-                    skills.append(skill)
-                    logger.info(f"Loaded skill: {skill.name} from {source}")
-
-            except Exception as e:
-                logger.error(f"Error loading {skill_path} from GitHub: {e}")
+            skill = parse_skill_md(content, source)
+            if not skill:
                 continue
 
-        logger.info(f"Loaded {len(skills)} skills from GitHub repo {url}")
-
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            # Try 'master' branch instead
-            try:
-                logger.info(
-                    f"Branch 'main' not found, trying 'master' for {owner}/{repo}"
+            if load_documents:
+                skill_dir = skill_file.parent
+                documents = _get_document_metadata_from_snapshot(
+                    skill_dir,
+                    snapshot_root,
+                    owner,
+                    repo,
+                    ref,
+                    text_extensions,
+                    image_extensions,
                 )
-                branch = "master"
-
-                # Try cache for master branch
-                cache_path = _get_cache_path(url, branch)
-                tree_data = _load_from_cache(cache_path)
-
-                if tree_data is None:
-                    api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
-
-                    with httpx.Client(timeout=30.0) as client:
-                        response = client.get(api_url)
-                        response.raise_for_status()
-                        tree_data = response.json()
-
-                    # Save to cache
-                    _save_to_cache(cache_path, tree_data)
-
-                # Repeat the loading process with master branch
-                skill_paths = []
-                for item in tree_data.get("tree", []):
-                    if item["type"] == "blob" and item["path"].endswith("SKILL.md"):
-                        if subpath:
-                            if item["path"].startswith(subpath):
-                                skill_paths.append(item["path"])
-                        else:
-                            skill_paths.append(item["path"])
-
-                for skill_path in skill_paths:
-                    try:
-                        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{skill_path}"
-
-                        with httpx.Client(timeout=30.0) as client:
-                            response = client.get(raw_url)
-                            response.raise_for_status()
-                            content = response.text
-
-                        source = f"{url}/tree/{branch}/{skill_path}"
-                        skill = parse_skill_md(content, source)
-
-                        if skill:
-                            # Load additional documents from the skill directory
-                            if load_documents:
-                                # Get the skill directory path (parent of SKILL.md)
-                                skill_dir_path = str(Path(skill_path).parent)
-                                if skill_dir_path == ".":
-                                    skill_dir_path = ""
-
-                                # Get metadata only (lazy loading)
-                                documents = _get_document_metadata_from_github(
-                                    owner,
-                                    repo,
-                                    branch,
-                                    skill_dir_path,
-                                    tree_data,
-                                    text_extensions,
-                                    image_extensions,
-                                )
-
-                                # Create document fetcher for lazy loading
-                                fetcher = _create_document_fetcher(
-                                    owner,
-                                    repo,
-                                    branch,
-                                    skill_dir_path,
-                                    text_extensions,
-                                    image_extensions,
-                                    max_image_size,
-                                )
-
-                                skill.documents = documents
-                                skill._document_fetcher = fetcher
-
-                                if documents:
-                                    logger.info(
-                                        f"Found {len(documents)} additional documents for skill: {skill.name}"
-                                    )
-
-                            skills.append(skill)
-                            logger.info(f"Loaded skill: {skill.name} from {source}")
-
-                    except Exception as e:
-                        logger.error(f"Error loading {skill_path} from GitHub: {e}")
-                        continue
-
-                logger.info(f"Loaded {len(skills)} skills from GitHub repo {url}")
-
-            except Exception as e2:
-                logger.error(
-                    f"Error loading from GitHub repo {url} (tried both main and master): {e2}"
+                skill.documents = documents
+                skill._document_fetcher = _create_snapshot_document_fetcher(
+                    skill_dir,
+                    documents,
+                    text_extensions,
+                    image_extensions,
+                    max_image_size,
                 )
-        else:
-            logger.error(f"HTTP error loading from GitHub {url}: {e}")
+                if documents:
+                    logger.info(
+                        f"Found {len(documents)} additional documents for skill: {skill.name}"
+                    )
 
-    except Exception as e:
-        logger.error(f"Error loading from GitHub {url}: {e}")
+            skills.append(skill)
+            logger.info(f"Loaded skill: {skill.name} from {source}")
 
+        except Exception as e:
+            logger.error(f"Error loading {skill_file} from snapshot: {e}")
+            continue
+
+    logger.info(f"Loaded {len(skills)} skills from GitHub repo {url}")
     return skills
 
 
 def load_all_skills(
-    skill_sources: list[dict[str, Any]], config: dict[str, Any] | None = None
+    skill_sources: list[dict[str, Any]],
+    config: dict[str, Any] | None = None,
+    force_refresh: bool = False,
 ) -> list[Skill]:
     """Load skills from all configured sources.
 
@@ -990,6 +853,9 @@ def load_all_skills(
         List of skill source configurations.
     config : dict[str, Any] | None
         Configuration dictionary with document loading settings.
+    force_refresh : bool, optional
+        Re-download GitHub sources even if fresh snapshots are cached.
+        Used by the auto-updater so detected changes actually land.
 
     Returns
     -------
@@ -1005,7 +871,9 @@ def load_all_skills(
             url = source_config.get("url")
             subpath = source_config.get("subpath", "")
             if url:
-                skills = load_from_github(url, subpath, config)
+                skills = load_from_github(
+                    url, subpath, config, force_refresh=force_refresh
+                )
                 all_skills.extend(skills)
 
         elif source_type == "local":

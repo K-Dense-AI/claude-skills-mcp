@@ -6,10 +6,14 @@ from claude_skills_mcp_backend.search_engine import SkillSearchEngine
 from claude_skills_mcp_backend.skill_loader import load_from_github
 
 
+@pytest.mark.network
 @pytest.mark.integration
 def test_eda_skill_exists():
     """Verify that the EDA skill is actually loaded from the repository."""
     skills = load_from_github("https://github.com/K-Dense-AI/claude-scientific-skills")
+
+    if len(skills) == 0:
+        pytest.skip("GitHub unreachable - skipping live test")
 
     # Find EDA skill
     eda_skill = None
@@ -27,10 +31,14 @@ def test_eda_skill_exists():
     print(f"  Source: {eda_skill.source}")
 
 
+@pytest.mark.network
 @pytest.mark.integration
 def test_eda_skill_search_ranking():
     """Test if EDA skill appears in search results for relevant queries."""
     skills = load_from_github("https://github.com/K-Dense-AI/claude-scientific-skills")
+
+    if len(skills) == 0:
+        pytest.skip("GitHub unreachable - skipping live test")
 
     engine = SkillSearchEngine("all-MiniLM-L6-v2")
     engine.index_skills(skills)
@@ -76,10 +84,14 @@ def test_eda_skill_search_ranking():
             pytest.fail(f"EDA skill not found in top 10 results for query '{query}'")
 
 
+@pytest.mark.network
 @pytest.mark.integration
 def test_description_length_impact():
     """Test if long descriptions cause embedding issues."""
     skills = load_from_github("https://github.com/K-Dense-AI/claude-scientific-skills")
+
+    if len(skills) == 0:
+        pytest.skip("GitHub unreachable - skipping live test")
 
     # Analyze description lengths
     desc_lengths = [(skill.name, len(skill.description)) for skill in skills]

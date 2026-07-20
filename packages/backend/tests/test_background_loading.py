@@ -112,9 +112,17 @@ def test_search_engine_thread_safety():
     assert engine.embeddings.shape[0] == 50
 
 
-def test_batch_loading_function():
-    """Test the batch loading function with callbacks."""
+def test_batch_loading_function(tmp_path):
+    """Test the batch loading function with callbacks (local skills)."""
     from claude_skills_mcp_backend.config import DEFAULT_CONFIG
+
+    # Create three local skills so batch_size=1 produces three batches
+    for i in range(3):
+        skill_dir = tmp_path / f"skill-{i}"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            f"---\nname: Skill {i}\ndescription: Test skill number {i}\n---\n\nBody.\n"
+        )
 
     batches_received = []
     total_counts = []
@@ -123,21 +131,14 @@ def test_batch_loading_function():
         batches_received.append(len(batch_skills))
         total_counts.append(total_loaded)
 
-    # Use a small subset for testing
-    skill_sources = [
-        {
-            "type": "github",
-            "url": "https://github.com/K-Dense-AI/claude-scientific-skills",
-            "subpath": "scientific-thinking/exploratory-data-analysis",
-        }
-    ]
+    skill_sources = [{"type": "local", "path": str(tmp_path)}]
 
     # Load with small batch size
     load_skills_in_batches(skill_sources, DEFAULT_CONFIG, callback, batch_size=1)
 
     # Verify batches were processed
-    assert len(batches_received) > 0
-    assert sum(batches_received) == total_counts[-1]
+    assert len(batches_received) == 3
+    assert sum(batches_received) == total_counts[-1] == 3
     print(
         f"\nReceived {len(batches_received)} batches, total {total_counts[-1]} skills"
     )

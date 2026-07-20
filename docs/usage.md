@@ -382,45 +382,41 @@ The server currently has 78 skills loaded from K-Dense-AI/claude-scientific-skil
 
 **Problem**: "API rate limit exceeded"
 
+Skill loading itself is immune to the API rate limit (repositories are
+downloaded as tarballs, which don't count against it). Only the hourly
+auto-update check uses the GitHub API.
+
 **Solutions**:
-- Wait an hour (60 requests/hour for unauthenticated)
+- Provide a `github_api_token` in your config (raises the limit to 5000/hour)
+- Disable auto-update (`"auto_update_enabled": false`) if you don't need it
 - Use local directories instead of GitHub for development
-- The server automatically caches GitHub API responses (see below)
 
 **Automatic Caching:**
 
-The server uses three-level caching to minimize GitHub API usage and speed up startup:
+The server uses two caches to minimize network usage and speed up startup:
 
-**Level 1: API Response Cache** (24-hour validity)
-- Caches repository tree structure
-- Location: `/tmp/claude_skills_mcp_cache/{md5}.json`
-- Avoids repeated GitHub API calls (60/hour limit)
-- Refreshes automatically after 24 hours
+**Repository Snapshot Cache** (24-hour validity)
+- Each GitHub repository is downloaded once as a tarball and extracted
+- Location: `/tmp/claude_skills_mcp_cache/repos/{md5}/`
+- A tarball download does not count against the GitHub API rate limit
+- Skill documents are read lazily from the snapshot (no per-file fetches)
+- The hourly auto-updater bypasses this cache when changes are detected
 
-**Level 2: Document Content Cache** (permanent)
-- Caches individual skill documents on first access
-- Location: `/tmp/claude_skills_mcp_cache/documents/{md5}.cache`
-- Fetched lazily when `read_skill_document` is called
-- Persists across server restarts
-
-**Level 3: Embedding Cache** (permanent)
-- Caches skill description embeddings per (model, description batch)
+**Embedding Cache** (permanent)
+- Caches skill embeddings per (model, text batch)
 - Location: `/tmp/claude_skills_mcp_cache/embeddings/{sha256}.npy`
 - When skill sources are unchanged, restarts skip encoding and model loading entirely
-- Invalidates automatically when descriptions or the embedding model change
+- Invalidates automatically when skill names/descriptions or the embedding model change
 
 **Lazy Document Loading**:
-- At startup: Only SKILL.md files are fetched (~90 requests)
-- On demand: Additional documents fetched when accessed via `read_skill_document`
-- Once cached: Documents served from disk (no network calls)
+- At startup: Only SKILL.md content and document metadata are held in memory
+- On demand: Document content is read from the local snapshot when accessed
+  via `read_skill_document` - no network calls
 
 **Performance Benefits**:
-- Startup time: 60s → 15s (4x improvement)
+- One network request per repository (tarball), zero on warm starts
 - No more Cursor/client timeouts during initialization
-- Document access: First time ~200ms, subsequent <1ms
-- Dramatically faster development workflow
-
-**Note**: Only the tree API call counts against the rate limit, not the raw content downloads.
+- Document access is a local disk read
 
 ### Slow Startup
 

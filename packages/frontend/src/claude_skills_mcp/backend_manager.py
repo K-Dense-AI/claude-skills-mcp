@@ -166,12 +166,17 @@ class BackendManager:
             logger.error(f"Stream consumer {prefix} error after {line_count} lines: {e}")
 
     async def _wait_for_health(self, timeout: int = 300) -> None:
-        """Wait for backend health check to pass AND skills to be loaded.
+        """Wait for the backend HTTP server to come up.
+
+        Returns as soon as /health responds 200 - skill loading continues in
+        the background and the backend's tool handlers report loading
+        progress to callers until it completes.
 
         Parameters
         ----------
         timeout : int, optional
-            Maximum time to wait in seconds, by default 300 (5 minutes).
+            Maximum time to wait in seconds, by default 300 (5 minutes,
+            covers the one-time backend package download on first run).
 
         Raises
         ------
@@ -188,25 +193,14 @@ class BackendManager:
                 async with httpx.AsyncClient(timeout=5.0) as client:
                     response = await client.get(health_url)
                     if response.status_code == 200:
-                        # Check if skills are loaded
                         health_data = response.json()
                         skills_loaded = health_data.get("skills_loaded", 0)
-                        loading_complete = health_data.get("loading_complete", False)
-                        
-                        if loading_complete and skills_loaded > 0:
-                            logger.info(f"Backend health check passed ({skills_loaded} skills loaded)")
-                            return
-                        elif loading_complete and skills_loaded == 0:
-                            # Still no skills after loading complete - might be config issue
-                            last_error = "Backend loaded but no skills found (check config/network)"
-                        else:
-                            # Show progress
-                            last_error = f"Loading: {skills_loaded} skills so far..."
-                            if int(elapsed) % 30 == 0 and int(elapsed) > 0:
-                                logger.info(f"Still loading skills... ({skills_loaded} loaded so far)")
-
-                    else:
-                        last_error = f"Status {response.status_code}"
+                        logger.info(
+                            f"Backend is up ({skills_loaded} skills loaded so far, "
+                            "loading continues in background)"
+                        )
+                        return
+                    last_error = f"Status {response.status_code}"
             except Exception as e:
                 last_error = str(e)
 

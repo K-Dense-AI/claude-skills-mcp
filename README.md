@@ -1,30 +1,22 @@
 # Claude Skills MCP Server
 
-> **This MCP server is no longer hosted or maintained.** Agent Skills have been natively adopted by all major AI platforms — Cursor, Windsurf, Claude Code, Copilot, and others now support skills out of the box. There is no longer a need for an MCP bridge to deliver skills to your coding assistant. Thank you to everyone who used and contributed to this project!
+> **This MCP server is no longer hosted or maintained.** Agent Skills have been natively adopted by all major AI platforms — Cursor, Windsurf, Claude Code, Copilot, and others now support skills out of the box. There is no longer a need for an MCP bridge to deliver skills to your coding assistant. The final release (v1.0.6) remains installable from PyPI. Thank you to everyone who used and contributed to this project!
 
 ---
 
 [![Tests](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/K-Dense-AI/claude-skills-mcp/actions/workflows/test.yml)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12 | 3.13](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![PyPI version](https://badge.fury.io/py/claude-skills-mcp.svg?icon=si%3Apython)](https://badge.fury.io/py/claude-skills-mcp)
 
-> **Use [Claude's powerful new Skills system](https://www.anthropic.com/news/skills) with ANY AI model or coding assistant** - including Cursor, Codex, GPT-5, Gemini, and more. This MCP server brings Anthropic's Agent Skills framework to the entire AI ecosystem through the Model Context Protocol.
+> **Use [Claude's powerful Skills system](https://www.anthropic.com/news/skills) with ANY AI model or coding assistant** - including Cursor, Codex, GPT-5, Gemini, and more. This MCP server brings Anthropic's Agent Skills framework to the entire AI ecosystem through the Model Context Protocol.
 
 A Model Context Protocol (MCP) server that provides intelligent search capabilities for discovering relevant Claude Agent Skills using vector embeddings and semantic similarity. This server implements the same progressive disclosure architecture that Anthropic describes in their [Agent Skills engineering blog](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills), making specialized skills available to any MCP-compatible AI application.
 
-**An open-source project by [K-Dense AI](https://k-dense.ai)** - creators of autonomous AI scientists for scientific research.
+**An open-source project by [K-Dense](https://www.k-dense.ai)** - creators of autonomous AI scientists for scientific research.
 
-This MCP server enables any MCP-compatible AI assistant to intelligently search and retrieve skills from our curated [Claude Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository and other skill sources like the [Official Claude Skills](https://github.com/anthropics/skills).
-
-<a href="https://cursor.com/en-US/install-mcp?name=claude-skills-mcp&config=eyJjb21tYW5kIjoidXZ4IGNsYXVkZS1za2lsbHMtbWNwIn0%3D">
-  <picture>
-    <source srcset="https://cursor.com/deeplink/mcp-install-light.svg" media="(prefers-color-scheme: dark)">
-    <source srcset="https://cursor.com/deeplink/mcp-install-dark.svg" media="(prefers-color-scheme: light)">
-    <img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install MCP Server" style="height:2.7em;"/>
-  </picture>
-</a>
+This MCP server enables any MCP-compatible AI assistant to intelligently search and retrieve skills from our curated [Scientific Agent Skills](https://github.com/K-Dense-AI/claude-scientific-skills) repository and other skill sources like the [Official Claude Skills](https://github.com/anthropics/skills).
 
 ## Demo
 
@@ -40,6 +32,7 @@ This MCP server enables any MCP-compatible AI assistant to intelligently search 
 - **Progressive Disclosure**: Multi-level skill loading (metadata → full content → files)
 - **Zero Configuration**: Works out of the box with curated skills
 - **Multi-Source**: Load from GitHub repositories and local directories
+- **Auto-Updating**: Checks skill sources hourly and re-indexes when they change
 - **Fast & Local**: No API keys needed, with automatic GitHub caching
 - **Configurable**: Customize sources, models, and content limits
 
@@ -70,7 +63,7 @@ Run the server with default configuration:
 uvx claude-skills-mcp
 ```
 
-This starts the lightweight frontend which auto-downloads the backend and loads ~90 skills from Anthropic's official skills repository and K-Dense AI's scientific skills collection.
+This starts the lightweight frontend which auto-downloads the backend and loads 160+ skills from Anthropic's official skills repository and K-Dense's Scientific Agent Skills collection.
 
 ### With Custom Configuration
 
@@ -90,6 +83,7 @@ uvx claude-skills-mcp --config config.json
 - **[Architecture Guide](docs/architecture.md)** - Two-package design, data flow, and components
 - **[API Documentation](docs/api.md)** - Tool parameters, examples, and best practices
 - **[Usage Examples](docs/usage.md)** - Advanced configuration, real-world use cases, and custom skill creation
+- **[Auto-Update Feature](docs/auto-update.md)** - Automatic hourly skill source refresh and change detection
 - **[Testing Guide](docs/testing.md)** - Complete testing instructions, CI/CD, and coverage analysis
 
 ## MCP Tools
@@ -102,7 +96,7 @@ The server provides three tools for working with Claude Agent Skills:
 
 See [API Documentation](docs/api.md) for detailed parameters, examples, and best practices.
 
-## Architecture (v1.0.0)
+## Architecture
 
 The system uses a **two-package architecture** for optimal performance:
 
@@ -129,13 +123,13 @@ See [Architecture Guide](docs/architecture.md) for detailed design and data flow
 Load skills from **GitHub repositories** (direct skills or Claude Code plugins) or **local directories**. 
 
 By default, loads from:
-- [Official Anthropic Skills](https://github.com/anthropics/skills) - 15 diverse skills for documents, presentations, web artifacts, and more
-- [K-Dense AI Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 78+ specialized skills for bioinformatics, cheminformatics, and scientific analysis
+- [Official Anthropic Skills](https://github.com/anthropics/skills) - diverse skills for documents, presentations, web artifacts, and more
+- [K-Dense Scientific Agent Skills](https://github.com/K-Dense-AI/claude-scientific-skills) - 148+ specialized skills for bioinformatics, cheminformatics, and scientific analysis
 - Local directory `~/.claude/skills` (if it exists)
 
 ## Contributing
 
-Contributions are welcome! To contribute:
+As this project is no longer maintained, new issues and pull requests may not be reviewed. If you'd like to build on it, please fork the repository. For reference, the original workflow was:
 
 1. **Report issues**: [Open an issue](https://github.com/K-Dense-AI/claude-skills-mcp/issues) for bugs or feature requests
 2. **Submit PRs**: Fork, create a feature branch, ensure tests pass (`uv run pytest tests/`), then submit
@@ -151,14 +145,6 @@ Contributions are welcome! To contribute:
 
 For questions, email [orion.li@k-dense.ai](mailto:orion.li@k-dense.ai)
 
-## Join Our Community! 🚀
-
-**We'd love to have you in our Slack community!** Connect with other users, share tips and tricks, get help with your skills, and be the first to know about new features and updates.
-
-👉 **[Join the K-Dense Community on Slack](https://join.slack.com/t/k-densecommunity/shared_invite/zt-3iajtyls1-EwmkwIZk0g_o74311Tkf5g)** 👈
-
-Whether you're building custom skills, integrating with different AI models, or just exploring the possibilities of Agent Skills, our community is here to support you!
-
 ## Learn More
 
 - [Agent Skills Documentation](https://docs.claude.com/en/docs/claude-code/skills) - Official Anthropic documentation on the Skills format
@@ -170,8 +156,4 @@ Whether you're building custom skills, integrating with different AI models, or 
 
 This project is licensed under the [Apache License 2.0](LICENSE).
 
-Copyright 2025 K-Dense AI (https://k-dense.ai)
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=K-Dense-AI/claude-skills-mcp&type=date&legend=top-left)](https://www.star-history.com/#K-Dense-AI/claude-skills-mcp&type=date&legend=top-left)
+Copyright 2025-2026 K-Dense (https://www.k-dense.ai)

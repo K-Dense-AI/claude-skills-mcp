@@ -15,6 +15,11 @@ from .skill_loader import Skill
 logger = logging.getLogger(__name__)
 
 
+def _embedding_text(skill: Skill) -> str:
+    """Text used to embed a skill for semantic search."""
+    return f"{skill.name}: {skill.description}"
+
+
 def _get_embedding_cache_dir() -> Path:
     """Get embedding cache directory.
 
@@ -76,35 +81,35 @@ class SkillSearchEngine:
             logger.info(f"Embedding model loaded: {self.model_name}")
         return self.model
 
-    def _encode_with_cache(self, descriptions: list[str]) -> np.ndarray:
-        """Encode descriptions, reusing a disk cache for repeated batches.
+    def _encode_with_cache(self, texts: list[str]) -> np.ndarray:
+        """Encode texts, reusing a disk cache for repeated batches.
 
-        Embeddings are keyed by model name plus the exact batch of
-        descriptions, so unchanged skill sources produce cache hits across
-        restarts. A cache hit also avoids loading the embedding model, which
-        is the dominant startup cost on warm starts.
+        Embeddings are keyed by model name plus the exact batch of texts, so
+        unchanged skill sources produce cache hits across restarts. A cache
+        hit also avoids loading the embedding model, which is the dominant
+        startup cost on warm starts.
 
         Parameters
         ----------
-        descriptions : list[str]
-            Skill descriptions to embed.
+        texts : list[str]
+            Texts to embed.
 
         Returns
         -------
         np.ndarray
-            Embeddings matrix for the descriptions.
+            Embeddings matrix for the texts.
         """
         digest = hashlib.sha256(
-            "\x00".join([self.model_name, *descriptions]).encode("utf-8")
+            "\x00".join([self.model_name, *texts]).encode("utf-8")
         ).hexdigest()
         cache_path = _get_embedding_cache_dir() / f"{digest}.npy"
 
         if cache_path.exists():
             try:
                 embeddings = np.load(cache_path)
-                if embeddings.shape[0] == len(descriptions):
+                if embeddings.shape[0] == len(texts):
                     logger.info(
-                        f"Loaded {len(descriptions)} embeddings from cache: {cache_path}"
+                        f"Loaded {len(texts)} embeddings from cache: {cache_path}"
                     )
                     return embeddings
                 logger.warning(
@@ -114,7 +119,7 @@ class SkillSearchEngine:
                 logger.warning(f"Failed to load embedding cache {cache_path}: {e}")
 
         model = self._ensure_model_loaded()
-        embeddings = model.encode(descriptions, convert_to_numpy=True)
+        embeddings = model.encode(texts, convert_to_numpy=True)
 
         try:
             np.save(cache_path, embeddings)
@@ -142,9 +147,9 @@ class SkillSearchEngine:
             logger.info(f"Indexing {len(skills)} skills...")
             self.skills = skills
 
-            # Generate embeddings from skill descriptions
-            descriptions = [skill.description for skill in skills]
-            self.embeddings = self._encode_with_cache(descriptions)
+            # Embed name + description so both contribute to relevance
+            texts = [_embedding_text(skill) for skill in skills]
+            self.embeddings = self._encode_with_cache(texts)
 
             logger.info(f"Successfully indexed {len(skills)} skills")
 
@@ -162,9 +167,9 @@ class SkillSearchEngine:
         with self._lock:
             logger.info(f"Adding {len(skills)} skills to index...")
 
-            # Generate embeddings for new skills
-            descriptions = [skill.description for skill in skills]
-            new_embeddings = self._encode_with_cache(descriptions)
+            # Embed name + description so both contribute to relevance
+            texts = [_embedding_text(skill) for skill in skills]
+            new_embeddings = self._encode_with_cache(texts)
 
             # Append to existing skills and embeddings
             self.skills.extend(skills)
@@ -246,9 +251,10 @@ class SkillSearchEngine:
         np.ndarray
             Similarity scores.
         """
-        # Normalize vectors
-        vec_norm = vec / np.linalg.norm(vec)
-        matrix_norm = matrix / np.linalg.norm(matrix, axis=1, keepdims=True)
+        # Normalize vectors (epsilon guard against zero-norm vectors)
+        vec_norm = vec / max(float(np.linalg.norm(vec)), 1e-12)
+        matrix_norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        matrix_norm = matrix / np.maximum(matrix_norms, 1e-12)
 
         # Compute dot product (cosine similarity for normalized vectors)
         similarities = np.dot(matrix_norm, vec_norm)

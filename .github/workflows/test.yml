@@ -27,12 +27,17 @@ jobs:
       - name: Run backend unit tests
         run: |
           cd packages/backend
-          uv run pytest tests/ -v -m "not integration"
+          uv run pytest tests/ -v -m "not integration and not network"
       
-      - name: Run backend integration tests
+      - name: Run backend integration tests (offline)
         run: |
           cd packages/backend
-          uv run pytest tests/ -v -m "integration"
+          uv run pytest tests/ -v -m "integration and not network"
+      
+      - name: Run backend network tests (live GitHub, advisory)
+        run: |
+          cd packages/backend
+          uv run pytest tests/ -v -m "network"
         continue-on-error: true
 
   test-frontend:
@@ -57,6 +62,11 @@ jobs:
         run: |
           cd packages/frontend
           uv run python -c "from claude_skills_mcp.mcp_proxy import MCPProxy, TOOL_SCHEMAS; print(f'✓ {len(TOOL_SCHEMAS)} tools defined')"
+      
+      - name: Run frontend tests
+        run: |
+          cd packages/frontend
+          uv run pytest tests/ -v
       
       - name: Test frontend can install backend
         run: |

@@ -18,13 +18,15 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "mcp>=1.0.0",
     "sentence-transformers>=2.2.0",
     "numpy>=1.24.0",
     "httpx>=0.24.0",
+    "pyyaml>=6.0",
     "torch>=2.0.0; platform_system != 'Linux'",
     "torch>=2.0.0,<3.0.0; platform_system == 'Linux'",
     "starlette>=0.27.0",
@@ -69,8 +71,9 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "-v --strict-markers"
+addopts = '-v --strict-markers -m "not network"'
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "network: marks tests that hit live GitHub and depend on its current content (deselected by default; run with -m network)",
 ]
 

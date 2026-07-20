@@ -74,22 +74,8 @@ async def test_start_backend_resolves_port_and_passes_args(monkeypatch):
     assert url == f"http://127.0.0.1:{manager.backend_port}/mcp"
 
 
-@pytest.mark.asyncio
-async def test_wait_for_health_reports_loading_progress(monkeypatch):
-    """While skills load, the timeout error reports progress.
-
-    Regression test: 'elapsed' was previously referenced before assignment
-    inside the loop, so the informative "Loading: N skills" message was
-    clobbered by a swallowed NameError.
-    """
-    manager = BackendManager(port=9124)
-
-    class FakeResponse:
-        status_code = 200
-
-        @staticmethod
-        def json():
-            return {"skills_loaded": 5, "loading_complete": False}
+def _fake_client_class(response_factory):
+    """Build a fake httpx.AsyncClient whose get() uses response_factory."""
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -102,12 +88,47 @@ async def test_wait_for_health_reports_loading_progress(monkeypatch):
             return False
 
         async def get(self, url):
-            return FakeResponse()
+            return response_factory()
 
-    monkeypatch.setattr("httpx.AsyncClient", FakeClient)
+    return FakeClient
+
+
+@pytest.mark.asyncio
+async def test_wait_for_health_returns_while_still_loading(monkeypatch):
+    """The proxy connects as soon as the backend is up, before skills finish
+    loading - tool calls report loading progress from the backend itself."""
+    manager = BackendManager(port=9124)
+
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"skills_loaded": 5, "loading_complete": False}
+
+    monkeypatch.setattr("httpx.AsyncClient", _fake_client_class(FakeResponse))
+
+    await manager._wait_for_health(timeout=5)  # Must not raise or block
+
+
+@pytest.mark.asyncio
+async def test_wait_for_health_times_out_with_last_error(monkeypatch):
+    """When the backend never comes up, the timeout error carries the cause.
+
+    Also a regression test for 'elapsed' being referenced before assignment
+    inside the loop (previously swallowed by the broad except).
+    """
+    manager = BackendManager(port=9124)
+
+    def raise_connect_error():
+        raise ConnectionError("connection refused by test")
+
+    monkeypatch.setattr(
+        "httpx.AsyncClient", _fake_client_class(raise_connect_error)
+    )
 
     with pytest.raises(TimeoutError) as exc_info:
         await manager._wait_for_health(timeout=0)
 
-    assert "Loading: 5 skills so far" in str(exc_info.value)
+    assert "connection refused by test" in str(exc_info.value)
     assert "elapsed" not in str(exc_info.value)

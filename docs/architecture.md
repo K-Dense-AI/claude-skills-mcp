@@ -40,68 +40,63 @@ Pass to skill loader and search engine
 **Purpose**: Load skills from various sources and parse their content.
 
 **Key Features**:
-- **GitHub repository loading** via API (no authentication required)
+- **GitHub repository loading** via tarball snapshot (a single codeload
+  request per repository - not counted against the GitHub API rate limit)
 - **Local directory scanning** for development and custom skills
-- **YAML frontmatter parsing** to extract skill metadata
+- **YAML frontmatter parsing** (yaml.safe_load with regex fallback) to
+  extract skill metadata, including multiline descriptions
 - **Support for multiple formats**:
   - Direct skills (SKILL.md files)
   - Claude Code plugin repositories
 - **Robust error handling**:
-  - Network issues with retries
   - Missing files and malformed content
-  - Rate limiting (60 requests/hour)
-- **Automatic caching** of GitHub API responses (24-hour validity)
+  - Branch fallback (main → master)
+- **Snapshot caching** (24-hour validity; auto-update bypasses with force_refresh)
 - **Document loading**: Scripts, references, images, and other assets
 
 **Loading Process**:
 ```
 Source Configuration
     ↓
-GitHub API → Cache → Parse SKILL.md
+Download repo tarball (1 request) → Extract to snapshot cache
     ↓
-Extract: name, description, content
+Find SKILL.md files → Parse (name, description, content)
     ↓
-Load additional documents
+Index document metadata (content read lazily from snapshot)
     ↓
 Return Skill objects
 ```
 
-**Caching Mechanism**:
-- Cache location: System temp directory (`/tmp/claude_skills_mcp_cache/`)
-- Cache key: MD5 hash of URL + branch
-- Cache validity: 24 hours
-- Automatic invalidation after expiry
-- Dramatically reduces GitHub API usage
+**Snapshot Caching**:
+- Cache location: `/tmp/claude_skills_mcp_cache/repos/{md5(owner/repo@ref)}/`
+- Cache validity: 24 hours (force-refreshed by the auto-updater on changes)
+- One tarball download per repository per day in steady state
+- Immune to the GitHub API rate limit (60 requests/hour unauthenticated)
 
 **Lazy Document Loading**:
 
-To solve startup timeout issues (60+ seconds), documents are loaded lazily:
-
-**Problem**: Fetching all documents for 90 skills at startup caused timeouts.
-
-**Solution**: 
-1. **Startup**: Load only SKILL.md files + document metadata (paths, sizes, types, URLs)
-2. **On-Demand**: Fetch document content when `read_skill_document` is called
-3. **Memory Cache**: Cache in Skill object for repeated access
-4. **Disk Cache**: Persist to `/tmp/claude_skills_mcp_cache/documents/` for future runs
+Only SKILL.md content and document metadata (paths, sizes, types, URLs) are
+held in memory. Document content is read from the extracted snapshot on
+demand when `read_skill_document` is called, then cached in memory.
 
 **Performance Impact**:
-- Startup time: 60s → 15s (4x improvement)
-- Network requests at startup: 300+ → 90 (SKILL.md only)
-- First document access: ~200ms (network fetch + cache)
-- Subsequent access: <1ms (memory or disk cache)
+- Network requests at startup: 1 tarball per repository (previously 90+ raw
+  fetches plus tree API calls)
+- Warm start: no network at all (snapshot + embedding caches)
+- Document access: local disk read, no network
 
 **Cache Directory Structure**:
 ```
 /tmp/claude_skills_mcp_cache/
-├── {md5_hash}.json          # GitHub API tree cache (24h TTL)
-├── documents/
-│   ├── {md5_hash}.cache     # Individual document cache (permanent)
-│   ├── {md5_hash}.cache
+├── repos/
+│   └── {md5_hash}/          # Extracted repo snapshot (24h TTL)
+│       ├── meta.json
+│       └── {repo}-{ref}/    # Repository contents
+├── embeddings/
+│   ├── {sha256_hash}.npy    # Embedding cache per (model, text batch)
 │   └── ...
-└── embeddings/
-    ├── {sha256_hash}.npy    # Embedding cache per (model, description batch)
-    └── ...
+└── state/
+    └── {md5_hash}.json      # Update-tracker state
 ```
 
 **Document Access Flow**:
@@ -112,17 +107,11 @@ Match documents by pattern
     ↓
 For each matched document:
     ↓
-Check if fetched? → Yes: Use existing content
-    ↓ No
 skill.get_document(path)
     ↓
 Check memory cache → Found: Return
     ↓ Not found
-Check disk cache → Found: Return
-    ↓ Not found
-Fetch from GitHub
-    ↓
-Save to disk cache
+Read from local snapshot (no network)
     ↓
 Cache in memory
     ↓

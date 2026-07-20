@@ -140,6 +140,7 @@ class MCPProxy:
         backend_args: list[str],
         port: Optional[int] = None,
         host: str = "127.0.0.1",
+        remote_url: Optional[str] = None,
     ):
         """Initialize the proxy.
 
@@ -151,12 +152,16 @@ class MCPProxy:
             Backend port. None (default) auto-selects a free port at spawn.
         host : str, optional
             Backend host, by default "127.0.0.1".
+        remote_url : str | None, optional
+            URL of an already-running backend (e.g. https://host/mcp).
+            When set, no local backend is spawned.
         """
         self.server = Server("claude-skills-mcp-proxy")
         self.backend_manager = BackendManager(port=port, host=host)
         self.backend_client: Optional[ClientSession] = None
         self.backend_ready = False
         self.backend_args = backend_args
+        self.remote_url = remote_url
         self._backend_task: Optional[asyncio.Task] = None
         self._backend_exit_stack: Optional[contextlib.AsyncExitStack] = None
 
@@ -246,16 +251,21 @@ class MCPProxy:
         5. Connects MCP client
         """
         try:
-            logger.info("Starting backend initialization...")
+            if self.remote_url:
+                # Remote backend: nothing to spawn, just connect
+                logger.info(f"Connecting to remote backend at {self.remote_url}")
+                await self._connect_with_retry(self.remote_url)
+            else:
+                logger.info("Starting backend initialization...")
 
-            # Ensure backend is running
-            backend_url = await self.backend_manager.ensure_backend_running(
-                self.backend_args
-            )
+                # Ensure backend is running
+                backend_url = await self.backend_manager.ensure_backend_running(
+                    self.backend_args
+                )
 
-            # Connect to backend via streamable HTTP
-            logger.info(f"Connecting to backend at {backend_url}")
-            await self._connect_to_backend(backend_url)
+                # Connect to backend via streamable HTTP
+                logger.info(f"Connecting to backend at {backend_url}")
+                await self._connect_to_backend(backend_url)
 
             self.backend_ready = True
             logger.info("Backend ready and connected!")
@@ -264,6 +274,33 @@ class MCPProxy:
             logger.error(f"Failed to start backend: {e}", exc_info=True)
             # Backend failed but proxy still runs
             # Users will see error message when they try to use tools
+
+    async def _connect_with_retry(
+        self, url: str, attempts: int = 3, delay: float = 2.0
+    ) -> None:
+        """Connect to a backend URL, retrying transient failures.
+
+        Parameters
+        ----------
+        url : str
+            Backend MCP URL.
+        attempts : int, optional
+            Number of connection attempts, by default 3.
+        delay : float, optional
+            Seconds between attempts, by default 2.0.
+        """
+        for attempt in range(1, attempts + 1):
+            try:
+                await self._connect_to_backend(url)
+                return
+            except Exception as e:
+                if attempt == attempts:
+                    raise
+                logger.warning(
+                    f"Connection attempt {attempt}/{attempts} to {url} failed: {e}, "
+                    f"retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
 
     async def _connect_to_backend(self, url: str) -> None:
         """Connect to backend via MCP streamable HTTP client.

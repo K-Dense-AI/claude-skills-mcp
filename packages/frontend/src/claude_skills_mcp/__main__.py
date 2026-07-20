@@ -173,17 +173,16 @@ async def main_async() -> None:
         sys.exit(1)
 
     try:
-        # Check if remote backend specified
         if args.remote:
             logger.info(f"Using remote backend: {args.remote}")
-            # TODO: Implement remote backend connection
-            # For now, this would require a different proxy implementation
-            print("Remote backend not yet implemented in v1.0.0", file=sys.stderr)
-            print("Please use local backend for now", file=sys.stderr)
-            sys.exit(1)
 
-        # Create and start proxy with backend args
-        proxy = MCPProxy(backend_args=backend_args, port=args.port, host=args.host)
+        # Create and start proxy (spawns a local backend unless --remote)
+        proxy = MCPProxy(
+            backend_args=backend_args,
+            port=args.port,
+            host=args.host,
+            remote_url=args.remote,
+        )
         proxy_instance = proxy
         await proxy.start()
 

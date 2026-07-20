@@ -205,3 +205,17 @@ def test_embedding_cache_distinct_per_model_and_batch(mock_skills, monkeypatch, 
 
     engine.index_skills(mock_skills[:2])
     assert len(list(tmp_path.glob("*.npy"))) == 2
+
+
+def test_cosine_similarity_zero_vector_no_nan():
+    """Zero-norm vectors produce 0 similarity instead of NaN."""
+    import numpy as np
+
+    zero_vec = np.zeros(3)
+    matrix = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+
+    similarities = SkillSearchEngine._cosine_similarity(zero_vec, matrix)
+
+    assert not np.any(np.isnan(similarities))
+    assert abs(similarities[0]) < 0.001
+    assert abs(similarities[1]) < 0.001

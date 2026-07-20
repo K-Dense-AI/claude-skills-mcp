@@ -129,3 +129,58 @@ def test_load_from_local_with_home_expansion(path_variation):
     # but it shouldn't crash
     skills = load_from_local(path_variation)
     assert isinstance(skills, list)
+
+
+def test_parse_skill_md_multiline_folded_description():
+    """YAML folded scalar (>) descriptions parse as full text, not '>'."""
+    content = """---
+name: Folded Skill
+description: >
+  Analyze RNA sequencing data and identify
+  differentially expressed genes across conditions.
+---
+
+# Folded Skill
+"""
+    skill = parse_skill_md(content, "test://folded")
+
+    assert skill is not None
+    assert skill.name == "Folded Skill"
+    assert skill.description != ">"
+    assert "RNA sequencing" in skill.description
+    assert "differentially expressed genes" in skill.description
+
+
+def test_parse_skill_md_multiline_literal_description():
+    """YAML literal scalar (|) descriptions parse as full text."""
+    content = """---
+name: Literal Skill
+description: |
+  Line one of the description.
+  Line two of the description.
+---
+
+Body.
+"""
+    skill = parse_skill_md(content, "test://literal")
+
+    assert skill is not None
+    assert "Line one" in skill.description
+    assert "Line two" in skill.description
+
+
+def test_parse_skill_md_invalid_yaml_falls_back_to_regex():
+    """Frontmatter that is not valid YAML still parses via regex fallback."""
+    content = """---
+name: Fallback Skill
+description: has: unquoted: colons: everywhere
+[this line breaks yaml
+---
+
+Body.
+"""
+    skill = parse_skill_md(content, "test://fallback")
+
+    assert skill is not None
+    assert skill.name == "Fallback Skill"
+    assert "unquoted" in skill.description
