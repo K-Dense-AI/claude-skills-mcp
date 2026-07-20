@@ -1,7 +1,10 @@
 """Vector search engine for finding relevant skills."""
 
+import hashlib
 import logging
+import tempfile
 import threading
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -10,6 +13,19 @@ from sentence_transformers import SentenceTransformer
 from .skill_loader import Skill
 
 logger = logging.getLogger(__name__)
+
+
+def _get_embedding_cache_dir() -> Path:
+    """Get embedding cache directory.
+
+    Returns
+    -------
+    Path
+        Path to embedding cache directory.
+    """
+    cache_dir = Path(tempfile.gettempdir()) / "claude_skills_mcp_cache" / "embeddings"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
 class SkillSearchEngine:
@@ -60,6 +76,54 @@ class SkillSearchEngine:
             logger.info(f"Embedding model loaded: {self.model_name}")
         return self.model
 
+    def _encode_with_cache(self, descriptions: list[str]) -> np.ndarray:
+        """Encode descriptions, reusing a disk cache for repeated batches.
+
+        Embeddings are keyed by model name plus the exact batch of
+        descriptions, so unchanged skill sources produce cache hits across
+        restarts. A cache hit also avoids loading the embedding model, which
+        is the dominant startup cost on warm starts.
+
+        Parameters
+        ----------
+        descriptions : list[str]
+            Skill descriptions to embed.
+
+        Returns
+        -------
+        np.ndarray
+            Embeddings matrix for the descriptions.
+        """
+        digest = hashlib.sha256(
+            "\x00".join([self.model_name, *descriptions]).encode("utf-8")
+        ).hexdigest()
+        cache_path = _get_embedding_cache_dir() / f"{digest}.npy"
+
+        if cache_path.exists():
+            try:
+                embeddings = np.load(cache_path)
+                if embeddings.shape[0] == len(descriptions):
+                    logger.info(
+                        f"Loaded {len(descriptions)} embeddings from cache: {cache_path}"
+                    )
+                    return embeddings
+                logger.warning(
+                    f"Embedding cache shape mismatch, re-encoding: {cache_path}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to load embedding cache {cache_path}: {e}")
+
+        model = self._ensure_model_loaded()
+        embeddings = model.encode(descriptions, convert_to_numpy=True)
+
+        try:
+            np.save(cache_path, embeddings)
+            logger.debug(f"Saved embeddings to cache: {cache_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save embedding cache {cache_path}: {e}")
+
+        return embeddings
+
     def index_skills(self, skills: list[Skill]) -> None:
         """Index a list of skills by generating their embeddings.
 
@@ -80,8 +144,7 @@ class SkillSearchEngine:
 
             # Generate embeddings from skill descriptions
             descriptions = [skill.description for skill in skills]
-            model = self._ensure_model_loaded()
-            self.embeddings = model.encode(descriptions, convert_to_numpy=True)
+            self.embeddings = self._encode_with_cache(descriptions)
 
             logger.info(f"Successfully indexed {len(skills)} skills")
 
@@ -101,8 +164,7 @@ class SkillSearchEngine:
 
             # Generate embeddings for new skills
             descriptions = [skill.description for skill in skills]
-            model = self._ensure_model_loaded()
-            new_embeddings = model.encode(descriptions, convert_to_numpy=True)
+            new_embeddings = self._encode_with_cache(descriptions)
 
             # Append to existing skills and embeddings
             self.skills.extend(skills)

@@ -95,9 +95,12 @@ To solve startup timeout issues (60+ seconds), documents are loaded lazily:
 ```
 /tmp/claude_skills_mcp_cache/
 ├── {md5_hash}.json          # GitHub API tree cache (24h TTL)
-└── documents/
-    ├── {md5_hash}.cache     # Individual document cache (permanent)
-    ├── {md5_hash}.cache
+├── documents/
+│   ├── {md5_hash}.cache     # Individual document cache (permanent)
+│   ├── {md5_hash}.cache
+│   └── ...
+└── embeddings/
+    ├── {sha256_hash}.npy    # Embedding cache per (model, description batch)
     └── ...
 ```
 
@@ -134,6 +137,7 @@ Return content
 - **Sentence-transformers** for local embeddings
 - **Default model**: `all-MiniLM-L6-v2` (384 dimensions, ~90MB)
 - **Vector indexing** at startup for fast queries
+- **Embedding disk cache**: embeddings are persisted per (model, description batch), so unchanged skill sources skip both encoding and model loading on restart
 - **Cosine similarity** search algorithm
 - **Configurable top-K** results
 - **No API keys** required - fully local operation

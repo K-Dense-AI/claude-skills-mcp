@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import signal
+import socket
 import subprocess
 from typing import Optional
 
@@ -17,8 +18,9 @@ class BackendManager:
 
     Attributes
     ----------
-    backend_port : int
-        Port for the backend HTTP server.
+    backend_port : int | None
+        Port for the backend HTTP server. None until a free port is
+        auto-selected at startup (or a port was pinned explicitly).
     backend_host : str
         Host for the backend HTTP server.
     backend_process : asyncio.subprocess.Process | None
@@ -27,13 +29,15 @@ class BackendManager:
         Backend HTTP URL once started.
     """
 
-    def __init__(self, port: int = 8765, host: str = "127.0.0.1"):
+    def __init__(self, port: Optional[int] = None, host: str = "127.0.0.1"):
         """Initialize backend manager.
 
         Parameters
         ----------
-        port : int, optional
-            Backend port, by default 8765.
+        port : int | None, optional
+            Backend port. None (default) auto-selects a free port when the
+            backend starts, so multiple frontends can run side by side
+            without fighting over a fixed port.
         host : str, optional
             Backend host, by default "127.0.0.1".
         """
@@ -72,12 +76,20 @@ class BackendManager:
         str
             Backend URL (http://host:port/mcp).
         """
+        if self.backend_port is None:
+            self.backend_port = self._find_free_port()
+
         logger.info(
             f"Starting backend server on {self.backend_host}:{self.backend_port}"
         )
 
         # Build shell command with unbuffered output
-        args_str = " ".join(backend_args)
+        # Host/port are always passed explicitly so the health check below
+        # polls the same address the backend actually binds
+        args_str = " ".join(
+            ["--host", self.backend_host, "--port", str(self.backend_port)]
+            + backend_args
+        )
         cmd = f"PYTHONUNBUFFERED=1 uvx claude-skills-mcp-backend {args_str}"
 
         logger.debug(f"Backend command: {cmd}")
@@ -110,6 +122,18 @@ class BackendManager:
         except Exception as e:
             logger.error(f"Failed to start backend: {e}")
             raise RuntimeError(f"Failed to start backend server: {e}")
+
+    def _find_free_port(self) -> int:
+        """Ask the OS for a free port on the backend host.
+
+        Returns
+        -------
+        int
+            An available port number.
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((self.backend_host, 0))
+            return sock.getsockname()[1]
 
     async def _consume_stream(
         self, stream: asyncio.StreamReader, prefix: str
@@ -159,6 +183,7 @@ class BackendManager:
 
         last_error = None
         while True:
+            elapsed = asyncio.get_event_loop().time() - start_time
             try:
                 async with httpx.AsyncClient(timeout=5.0) as client:
                     response = await client.get(health_url)
@@ -186,7 +211,6 @@ class BackendManager:
                 last_error = str(e)
 
             # Check timeout
-            elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > timeout:
                 raise TimeoutError(
                     f"Backend failed to start within {timeout}s. Last error: {last_error}"
@@ -201,8 +225,8 @@ class BackendManager:
     async def ensure_backend_running(self, backend_args: list[str]) -> str:
         """Ensure backend is running via uvx.
 
-        Always kills any existing backend and spawns fresh to avoid version
-        mismatches and state issues. Simpler and more robust than reuse logic.
+        Spawns a fresh backend on this manager's port (auto-selected when not
+        pinned), so it never touches processes owned by other sessions.
 
         Parameters
         ----------
@@ -214,37 +238,21 @@ class BackendManager:
         str
             Backend URL.
         """
-        # Always kill any existing backend on this port before starting
-        # This ensures clean state and no version mismatches
-        logger.info(f"Cleaning port {self.backend_port} before starting backend...")
-        self._kill_process_on_port(self.backend_port)
-        await asyncio.sleep(1)  # Give processes time to die
-
-        # Start fresh backend
         logger.info("Starting fresh backend via uvx (auto-downloads if needed)...")
         return await self.start_backend(backend_args)
-    
-    def _kill_process_on_port(self, port: int) -> None:
-        """Kill any process listening on the given port.
-        
-        Parameters
-        ----------
-        port : int
-            Port number to check and kill.
+
+    def kill_backend_process(self) -> None:
+        """Synchronously kill the spawned backend process group, if any.
+
+        Safe to call from atexit handlers. Only targets the process this
+        manager spawned — never other processes that happen to share a port.
         """
+        if self.backend_process is None:
+            return
         try:
-            import subprocess
-            logger.info(f"Attempting to kill any process on port {port}")
-            # Find and kill process on port
-            subprocess.run(
-                f"lsof -ti :{port} | xargs kill -9 2>/dev/null || true",
-                shell=True,
-                timeout=2,
-                capture_output=True
-            )
-            logger.info(f"Cleanup attempt completed for port {port}")
-        except Exception as e:
-            logger.debug(f"Error during port cleanup: {e}")
+            os.killpg(os.getpgid(self.backend_process.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
 
     async def cleanup(self) -> None:
         """Cleanup backend process and all child processes."""

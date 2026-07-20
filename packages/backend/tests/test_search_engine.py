@@ -143,3 +143,65 @@ def test_cosine_similarity():
     assert len(similarities) == 2
     assert abs(similarities[0] - 1.0) < 0.001  # Same vector
     assert abs(similarities[1] - 0.0) < 0.001  # Orthogonal
+
+
+def test_embedding_cache_reuse(mock_skills, monkeypatch, tmp_path):
+    """A second engine indexing the same skills reuses cached embeddings.
+
+    On a full cache hit the embedding model is never loaded, which is what
+    makes warm startups fast.
+    """
+    import numpy as np
+
+    monkeypatch.setattr(
+        "claude_skills_mcp_backend.search_engine._get_embedding_cache_dir",
+        lambda: tmp_path,
+    )
+
+    engine1 = SkillSearchEngine("all-MiniLM-L6-v2")
+    engine1.index_skills(mock_skills)
+    assert engine1.model is not None  # Cache miss: model was loaded
+
+    engine2 = SkillSearchEngine("all-MiniLM-L6-v2")
+    engine2.index_skills(mock_skills)
+    assert engine2.model is None  # Cache hit: model never loaded
+    assert np.array_equal(engine1.embeddings, engine2.embeddings)
+
+    # Search still works after a cache hit (model loads lazily for the query)
+    results = engine2.search("analyze gene expression", top_k=1)
+    assert len(results) == 1
+
+
+def test_embedding_cache_corrupt_file_reencodes(mock_skills, monkeypatch, tmp_path):
+    """A corrupt cache file is ignored and embeddings are recomputed."""
+    monkeypatch.setattr(
+        "claude_skills_mcp_backend.search_engine._get_embedding_cache_dir",
+        lambda: tmp_path,
+    )
+
+    engine1 = SkillSearchEngine("all-MiniLM-L6-v2")
+    engine1.index_skills(mock_skills)
+
+    for cache_file in tmp_path.glob("*.npy"):
+        cache_file.write_bytes(b"not a numpy file")
+
+    engine2 = SkillSearchEngine("all-MiniLM-L6-v2")
+    engine2.index_skills(mock_skills)
+    assert engine2.model is not None  # Had to re-encode
+    assert engine2.embeddings is not None
+    assert engine2.embeddings.shape[0] == len(mock_skills)
+
+
+def test_embedding_cache_distinct_per_model_and_batch(mock_skills, monkeypatch, tmp_path):
+    """Different batches produce distinct cache entries."""
+    monkeypatch.setattr(
+        "claude_skills_mcp_backend.search_engine._get_embedding_cache_dir",
+        lambda: tmp_path,
+    )
+
+    engine = SkillSearchEngine("all-MiniLM-L6-v2")
+    engine.index_skills(mock_skills)
+    assert len(list(tmp_path.glob("*.npy"))) == 1
+
+    engine.index_skills(mock_skills[:2])
+    assert len(list(tmp_path.glob("*.npy"))) == 2

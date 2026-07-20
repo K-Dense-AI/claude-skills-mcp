@@ -389,7 +389,7 @@ The server currently has 78 skills loaded from K-Dense-AI/claude-scientific-skil
 
 **Automatic Caching:**
 
-The server uses two-level caching to minimize GitHub API usage and speed up startup:
+The server uses three-level caching to minimize GitHub API usage and speed up startup:
 
 **Level 1: API Response Cache** (24-hour validity)
 - Caches repository tree structure
@@ -402,6 +402,12 @@ The server uses two-level caching to minimize GitHub API usage and speed up star
 - Location: `/tmp/claude_skills_mcp_cache/documents/{md5}.cache`
 - Fetched lazily when `read_skill_document` is called
 - Persists across server restarts
+
+**Level 3: Embedding Cache** (permanent)
+- Caches skill description embeddings per (model, description batch)
+- Location: `/tmp/claude_skills_mcp_cache/embeddings/{sha256}.npy`
+- When skill sources are unchanged, restarts skip encoding and model loading entirely
+- Invalidates automatically when descriptions or the embedding model change
 
 **Lazy Document Loading**:
 - At startup: Only SKILL.md files are fetched (~90 requests)

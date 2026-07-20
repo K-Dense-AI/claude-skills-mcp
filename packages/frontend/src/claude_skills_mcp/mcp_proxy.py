@@ -135,16 +135,25 @@ class MCPProxy:
         Context manager for backend connection lifecycle.
     """
 
-    def __init__(self, backend_args: list[str]):
+    def __init__(
+        self,
+        backend_args: list[str],
+        port: Optional[int] = None,
+        host: str = "127.0.0.1",
+    ):
         """Initialize the proxy.
 
         Parameters
         ----------
         backend_args : list[str]
             CLI arguments to forward to backend when spawning.
+        port : int | None, optional
+            Backend port. None (default) auto-selects a free port at spawn.
+        host : str, optional
+            Backend host, by default "127.0.0.1".
         """
         self.server = Server("claude-skills-mcp-proxy")
-        self.backend_manager = BackendManager()
+        self.backend_manager = BackendManager(port=port, host=host)
         self.backend_client: Optional[ClientSession] = None
         self.backend_ready = False
         self.backend_args = backend_args

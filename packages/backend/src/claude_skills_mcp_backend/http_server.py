@@ -5,9 +5,8 @@ import threading
 from typing import Any
 
 import uvicorn
-from starlette.applications import Starlette
 from starlette.responses import JSONResponse
-from starlette.routing import Route, Mount
+from starlette.routing import Route
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 
