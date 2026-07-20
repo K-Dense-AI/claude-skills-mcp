@@ -1,6 +1,6 @@
 # Claude Skills MCP Server
 
-> **This MCP server is no longer hosted or maintained.** Agent Skills have been natively adopted by all major AI platforms — Cursor, Windsurf, Claude Code, Copilot, and others now support skills out of the box. There is no longer a need for an MCP bridge to deliver skills to your coding assistant. The final release (v1.0.6) remains installable from PyPI. Thank you to everyone who used and contributed to this project!
+> **This MCP server is no longer hosted or maintained.** Agent Skills have been natively adopted by all major AI platforms — Cursor, Windsurf, Claude Code, Copilot, and others now support skills out of the box. There is no longer a need for an MCP bridge to deliver skills to your coding assistant. The final release (v1.1.0) remains installable from PyPI. Thank you to everyone who used and contributed to this project!
 
 ---
 

@@ -128,8 +128,8 @@ def sync_versions(check_only: bool = False) -> bool:
         (
             "Integration test (frontend wheel)",
             repo_root / "tests/integration/test_timing.py",
-            r'frontend_wheel = "packages/frontend/dist/claude_skills_mcp-[0-9]+\.[0-9]+\.[0-9]+-py3-none-any\.whl"',
-            f'frontend_wheel = "packages/frontend/dist/claude_skills_mcp-{version}-py3-none-any.whl"',
+            r'"packages/frontend/dist/claude_skills_mcp-[0-9]+\.[0-9]+\.[0-9]+-py3-none-any\.whl"',
+            f'"packages/frontend/dist/claude_skills_mcp-{version}-py3-none-any.whl"',
         ),
         (
             "Integration test (backend wheel)",

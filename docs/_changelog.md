@@ -5,6 +5,45 @@
 
 ---
 
+## v1.1.0 Release Notes
+
+### Backend
+
+- **Tarball-based GitHub loading**: repositories are downloaded as a single
+  codeload tarball (not counted against the GitHub API rate limit) and
+  extracted to a 24h snapshot cache. Replaces per-file raw fetches + tree API
+  calls; skill documents are read lazily from the local snapshot.
+- **Auto-update fix**: the hourly updater now bypasses the snapshot cache
+  (`force_refresh`), so detected changes actually reload.
+- **YAML frontmatter parsing**: `parse_skill_md` uses `yaml.safe_load`
+  (regex fallback), fixing multiline `description: >` / `|` scalars that
+  previously indexed as a literal `">"`.
+- **Embedding disk cache**: skill embeddings persist per (model, text batch)
+  under `/tmp/claude_skills_mcp_cache/embeddings/`; warm starts skip encoding
+  and model loading entirely.
+- **Search quality**: embeddings now use `name: description`; cosine
+  similarity guards against zero-norm vectors.
+
+### Frontend
+
+- **Dynamic port selection**: the spawned backend gets a free ephemeral port
+  by default (pin with `--port`); removed all kill-by-port logic - cleanup
+  only ever targets the spawned process. Multiple frontends can now coexist.
+- **Faster readiness**: the proxy connects as soon as the backend HTTP
+  server is up instead of waiting for all skills to load.
+- **`--remote <url>` implemented**: connects to an already-running backend
+  (with retry) instead of spawning one.
+
+### Project
+
+- Python 3.12-3.13 supported (`requires-python >=3.12,<3.14`).
+- Tests: new `network` marker (deselected by default) makes the default
+  suite deterministic and offline; tarball loading, YAML parsing, and
+  frontend/backend tool-schema sync covered by new no-network tests.
+- CI runs offline integration tests strictly; live-GitHub tests are advisory.
+
+---
+
 ## v1.0.0 Migration Guide (v0.1.x → v1.0.0)
 
 ### Overview
