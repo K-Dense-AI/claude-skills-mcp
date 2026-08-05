@@ -1,5 +1,7 @@
 # Claude Skills MCP Server
 
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2FK-Dense-AI%2Fclaude-skills-mcp.svg)](https://mcptoplist.com/server/glama%2FK-Dense-AI%2Fclaude-skills-mcp)
+
 > **This MCP server is no longer hosted or maintained.** Agent Skills have been natively adopted by all major AI platforms — Cursor, Windsurf, Claude Code, Copilot, and others now support skills out of the box. There is no longer a need for an MCP bridge to deliver skills to your coding assistant. The final release (v1.1.0) remains installable from PyPI. Thank you to everyone who used and contributed to this project!
 
 ---
